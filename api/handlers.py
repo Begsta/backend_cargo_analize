@@ -3,20 +3,20 @@ from fastapi.templating import Jinja2Templates
 from data.collections import cargo_lift_collection
 
 router = APIRouter()
-templates = Jinja2Templates(directory="../frontend_cargo_analize/templates")
+templates = Jinja2Templates(directory="../frontend_cargo_analize/templates/")
 
 
 @router.get("/")
 def get_cargo_tiles(request: Request, cargo_mass: str | None = None):
     try:
-        cargo_mass = int(cargo_mass)
-    except Exception:
+        cargo_mass =  float(cargo_mass)
+    except (TypeError, ValueError):
         cargo_mass = None
     cargos = []
     for cargo in cargo_lift_collection:
         if cargo["publication_status"] != "published":
             continue
-        if cargo_mass is not None and cargo["cargo_mass"] != cargo_mass:
+        if cargo_mass is not None and cargo["cargo_mass"] < cargo_mass:
             continue
         copy_cargo = dict(cargo)
         copy_cargo["interest_marks"] = len(copy_cargo["interest_marks"])
@@ -38,15 +38,7 @@ def get_cargo_detail(request: Request, cargo_id: int, next_video: bool = False):
         for cargo in cargo_lift_collection
         if cargo["publication_status"] == "published"
     ]
-    if next_video:
-        for idx, cargo in enumerate(published):
-            if cargo["cargo_id"] == cargo_id:
-                return templates.TemplateResponse(
-                    request=request,
-                    name="lenta-podyoma.html",
-                    context={"cargo": published[(idx + 1) % len(published)]},
-                )
-    else:
+    if not next_video:
         return templates.TemplateResponse(
             request=request,
             name="lenta-podyoma.html",
@@ -54,9 +46,23 @@ def get_cargo_detail(request: Request, cargo_id: int, next_video: bool = False):
                 "cargo": next(
                     (cargo for cargo in published if cargo["cargo_id"] == cargo_id),
                     None,
+                ),
+                "interest_marks": next(
+                    (len(cargo["interest_marks"]) for cargo in published if cargo["cargo_id"] == cargo_id),
+                    None,
                 )
             },
         )
+
+    for idx, cargo in enumerate(published):
+        if cargo["cargo_id"] == cargo_id:
+            return templates.TemplateResponse(
+                request=request,
+                name="lenta-podyoma.html",
+                context={"cargo": published[(idx+1) % len(published)],
+                "interest_marks": len(published[(idx+1) % len(published)]["interest_marks"])},
+            )
+        
 
 
 @router.get("/lift_feed")

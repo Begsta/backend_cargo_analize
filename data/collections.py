@@ -10,7 +10,7 @@ cargo_lift_collection = [
         "cargo_mass": 4,
         "boom_reach": 35,
         "image_url": "http://localhost:9000/media/__tn4__ecics_2163_2289_1440_621.jpg",
-        "video_url": "http://localhost:9000/media/12453941_3840_2160_25fps.mp4",
+        "video_url": "http://localhost:9000/media/mcdonalds.mp4",
         "interest_marks": [11, 14, 22],
     },
     {
@@ -24,7 +24,7 @@ cargo_lift_collection = [
         "cargo_mass": 7,
         "boom_reach": 42,
         "image_url": "http://localhost:9000/media/__tn4__ecics_2386_2532_360_270.jpg",
-        "video_url": "http://localhost:9000/media/12466608_3840_2160_30fps.mp4",
+        "video_url": "http://localhost:9000/media/hat.mp4",
         "interest_marks": [3, 8, 11, 14, 19],
     },
     {
@@ -35,7 +35,7 @@ cargo_lift_collection = [
         "cargo_mass": 2,
         "boom_reach": 28,
         "image_url": "http://localhost:9000/media/__tn4__ecics_2420_2573_360_270.jpeg",
-        "video_url": "http://localhost:9000/media/12466938_3840_2160_30fps.mp4",
+        "video_url": "http://localhost:9000/media/strawberry.mp4",
         "interest_marks": [7, 22],
     },
     {
@@ -46,7 +46,7 @@ cargo_lift_collection = [
         "cargo_mass": 3,
         "boom_reach": 30,
         "image_url": "http://localhost:9000/media/istockphoto-1323030556-2048x2048.jpg",
-        "video_url": "http://localhost:9000/media/12466963_3840_2160_30fps.mp4",
+        "video_url": "http://localhost:9000/media/12466938_3840_2160_30fps.mp4",
         "interest_marks": [],
     },
     {
@@ -57,7 +57,7 @@ cargo_lift_collection = [
         "cargo_mass": 10,
         "boom_reach": 10,
         "image_url": "http://localhost:9000/media/istockphoto-157558590-2048x2048.jpg",
-        "video_url": "http://localhost:9000/media/12466980_3840_2160_30fps.mp4",
+        "video_url": "http://localhost:9000/media/12466608_3840_2160_30fps.mp4",
         "interest_marks": [1],
     },
 ]

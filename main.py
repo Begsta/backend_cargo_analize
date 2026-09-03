@@ -1,10 +1,12 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 from api.handlers import router
 
-app = FastAPI(title="tiktok for cran")
+app = FastAPI(title="tiktok for cargo")
 
 app.include_router(router)
+app.mount("/static", StaticFiles(directory="../frontend_cargo_analize/static"), name="static")
 
 
 if __name__ == "__main__":
