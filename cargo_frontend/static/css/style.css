@@ -1,0 +1,586 @@
+/* Стили скопированы с https://www.wolffkran.com/website/en/de/products
+   1) #E30613 — красный логотип WOLFF и hover текста карточек
+   2) #1D1D1D — уголь заголовков
+   3) #FFFFFF — белая панель вкладок и белые карточки
+   Форма карточки: прямоугольник без скругления
+   Кнопка «Отобрать»: прямоугольная серая #F2F2F2, рамка #E5E5E5
+   шрифт Helvetica / Arial
+   Имена в коде: cargo_* */
+
+:root {
+  --wolff-krasnyj: #e30613;
+  --ugol: #1d1d1d;
+  --belyj: #ffffff;
+  --seriy-tekst: #6b6b6b;
+  --ramka-knopki: #e5e5e5;
+  --zalivka-knopki: #f2f2f2;
+  --hover-knopki: #dcdcdc;
+  --fon-rama: #ececec;
+  --vysota-vkladok: 64px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: var(--ugol);
+  background: var(--fon-rama);
+}
+
+.rama-telefona {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  margin: 0 auto;
+  background: var(--belyj);
+  position: relative;
+  overflow: hidden;
+}
+
+/* —— нижняя панель вкладок —— */
+.panel-vkladok-podyoma {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  height: calc(var(--vysota-vkladok) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--belyj);
+  border-top: 1px solid var(--ramka-knopki);
+  display: flex;
+  z-index: 40;
+}
+
+.vkladka-podyoma {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-decoration: none;
+  color: var(--seriy-tekst);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.vkladka-podyoma svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+
+.vkladka-podyoma:hover {
+  color: var(--ugol);
+}
+
+.vkladka-podyoma.aktivna {
+  color: var(--wolff-krasnyj);
+}
+
+/* —— лента подъёма —— */
+.ekran-lenty {
+  position: relative;
+  height: 100vh;
+  background: var(--ugol);
+}
+
+.kadr-podyoma,
+.video-cikla {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--ugol);
+}
+
+.video-cikla {
+  z-index: 1;
+}
+
+.gradient-niz {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 58%;
+  z-index: 2;
+  background: linear-gradient(to top, rgba(29, 29, 29, 0.92) 12%, rgba(29, 29, 29, 0.35) 55%, transparent);
+  pointer-events: none;
+}
+
+.sloi-dannyh {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--vysota-vkladok) + env(safe-area-inset-bottom, 0px));
+  z-index: 3;
+  padding: 20px 14px 16px 18px;
+  color: var(--belyj);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kolonka-teksta {
+  flex: 1;
+  min-width: 0;
+}
+
+.kolonka-sprava {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 14px;
+  text-align: right;
+}
+
+.znak-wolff {
+  display: inline-block;
+  background: var(--wolff-krasnyj);
+  color: var(--belyj);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  padding: 5px 9px;
+  margin-bottom: 10px;
+}
+
+.naimenovanie-gruza {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 8px;
+}
+
+.opisanie-podyoma {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #e8e8e8;
+  margin-bottom: 0;
+}
+
+.opisanie-podyoma summary {
+  list-style: none;
+  cursor: pointer;
+  color: #f0f0f0;
+  font-weight: 600;
+}
+
+.opisanie-podyoma summary::-webkit-details-marker {
+  display: none;
+}
+
+.opisanie-podyoma summary::after {
+  content: " больше";
+  color: var(--wolff-krasnyj);
+  font-weight: 700;
+}
+
+.opisanie-podyoma[open] summary::after {
+  content: " меньше";
+}
+
+.tekst-opisaniya {
+  margin-top: 8px;
+  color: #d4d4d4;
+}
+
+.polya-podyoma {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  font-size: 12px;
+  align-items: flex-end;
+}
+
+.polya-podyoma dt {
+  color: #b8b8b8;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.polya-podyoma dd {
+  font-weight: 700;
+  font-size: 15px;
+  margin-top: 2px;
+}
+
+.ikonki-sprava {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.otmetka-interesa {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 44px;
+  color: var(--belyj);
+  text-decoration: none;
+}
+
+.otmetka-interesa svg {
+  width: 28px;
+  height: 28px;
+  fill: var(--wolff-krasnyj);
+}
+
+.kolichestvo-otmetok {
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.ikonka-sleduyushchiy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 44px;
+  text-decoration: none;
+  color: var(--belyj);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ikonka-sleduyushchiy svg {
+  width: 28px;
+  height: 28px;
+  fill: var(--belyj);
+}
+
+.ikonka-sleduyushchiy:hover {
+  color: var(--wolff-krasnyj);
+}
+
+.ikonka-sleduyushchiy:hover svg {
+  fill: var(--wolff-krasnyj);
+}
+
+/* —— черновик / формы —— */
+.stranica-s-vkladkami {
+  min-height: 100vh;
+  padding: 16px 16px calc(var(--vysota-vkladok) + 20px + env(safe-area-inset-bottom, 0px));
+  background: var(--belyj);
+}
+
+.shapka-chernovika {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.zagolovok-stranicy {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.status-chernovik {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--seriy-tekst);
+  border: 1px solid var(--ramka-knopki);
+  padding: 4px 8px;
+}
+
+.blok-minio {
+  margin-bottom: 18px;
+  border: 1px solid var(--ramka-knopki);
+  background: var(--belyj);
+}
+
+.blok-minio h2 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--seriy-tekst);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ramka-knopki);
+  background: var(--zalivka-knopki);
+}
+
+.prevyu-minio {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  display: block;
+  background: #d9e2ea;
+}
+
+.pole-fayla,
+.pole-gruza {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-top: 1px solid var(--ramka-knopki);
+  font: inherit;
+  color: var(--ugol);
+  background: var(--belyj);
+}
+
+.pole-chislo {
+  border: 1px solid var(--ramka-knopki);
+  background: var(--zalivka-knopki);
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  caret-color: var(--wolff-krasnyj);
+}
+
+.pole-chislo:focus {
+  outline: 2px solid var(--wolff-krasnyj);
+  outline-offset: -2px;
+  background: var(--belyj);
+}
+
+.pole-gruza:focus {
+  outline: 2px solid var(--wolff-krasnyj);
+  outline-offset: -2px;
+}
+
+.metka-polya {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--seriy-tekst);
+  margin: 12px 0 6px;
+}
+
+textarea.pole-gruza {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.knopka-bez-sohraneniya {
+  width: 100%;
+  margin-top: 18px;
+  padding: 14px;
+  background: var(--zalivka-knopki);
+  border: 1px solid var(--ramka-knopki);
+  color: var(--seriy-tekst);
+  font: inherit;
+  font-weight: 600;
+  cursor: not-allowed;
+  border-radius: 0;
+}
+
+/* —— каталог (плитка) —— */
+.forma-massy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--ramka-knopki);
+  background: var(--zalivka-knopki);
+}
+
+.shapka-polzunka {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.shapka-polzunka label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--seriy-tekst);
+}
+
+.znachenie-polzunka {
+  display: inline-block;
+  min-width: 3.2em;
+  text-align: right;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ugol);
+  font-variant-numeric: tabular-nums;
+}
+
+.obertka-polzunka {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 2px 0;
+}
+
+.forma-massy input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.forma-massy input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--ramka-knopki);
+  border: 0;
+  border-radius: 0;
+}
+
+.forma-massy input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -8px;
+  background: var(--wolff-krasnyj);
+  border: 2px solid var(--belyj);
+  box-shadow: 0 0 0 1px var(--ramka-knopki);
+  border-radius: 0;
+}
+
+.forma-massy input[type="range"]::-moz-range-track {
+  height: 4px;
+  background: var(--ramka-knopki);
+  border: 0;
+  border-radius: 0;
+}
+
+.forma-massy input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--wolff-krasnyj);
+  border: 2px solid var(--belyj);
+  box-shadow: 0 0 0 1px var(--ramka-knopki);
+  border-radius: 0;
+}
+
+.forma-massy input[type="range"]:focus-visible {
+  outline: 2px solid var(--wolff-krasnyj);
+  outline-offset: 4px;
+}
+
+.metki-polzunka {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--seriy-tekst);
+}
+
+.forma-massy button {
+  width: 100%;
+  background: var(--zalivka-knopki);
+  color: var(--ugol);
+  border: 1px solid var(--ramka-knopki);
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.forma-massy button:hover {
+  background: var(--hover-knopki);
+  color: var(--wolff-krasnyj);
+}
+
+.setka-gruzov {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.kartochka-gruza {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background: var(--belyj);
+  border: 1px solid var(--ramka-knopki);
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.kartochka-gruza:hover {
+  background: var(--belyj);
+}
+
+.kartochka-gruza:hover .telo-kartochki h2,
+.kartochka-gruza:hover .niz-kartochki,
+.kartochka-gruza:hover .niz-kartochki strong {
+  color: var(--wolff-krasnyj);
+}
+
+.foto-kartochki {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  display: block;
+  background: #cfd8e0;
+}
+
+.telo-kartochki {
+  padding: 10px;
+}
+
+.telo-kartochki h2 {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-bottom: 6px;
+  color: var(--ugol);
+}
+
+.niz-kartochki {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--seriy-tekst);
+}
+
+.niz-kartochki strong {
+  color: var(--ugol);
+}
+
+.podskazka-filtra {
+  font-size: 12px;
+  color: var(--seriy-tekst);
+  margin-bottom: 12px;
+}

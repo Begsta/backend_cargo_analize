@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Каталог грузов</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+  </head>
+  <body>
+    <div class="rama-telefona">
+      <main class="stranica-s-vkladkami">
+        <header class="shapka-chernovika">
+          <span class="znak-wolff">WOLFF</span>
+          <h1 class="zagolovok-stranicy">Каталог грузов</h1>
+        </header>
+
+        <p class="podskazka-filtra">
+          Фильтр по массе груза, т. Значение 0 — все опубликованные. Число справа обновится после «Отобрать».
+        </p>
+        <form class="forma-massy" method="get" action="/">
+          <div class="shapka-polzunka">
+            <label for="cargo_mass">Масса, т</label>
+            <output class="znachenie-polzunka" for="cargo_mass">
+              {% if mass_filter != "" %}{{ mass_filter }}{% else %}0.0{% endif %}
+            </output>
+          </div>
+          <div class="obertka-polzunka">
+            <input
+              type="range"
+              id="cargo_mass"
+              name="cargo_mass"
+              min="0"
+              max="10"
+              step="0.1"
+              value="{% if mass_filter != '' %}{{ mass_filter }}{% else %}0{% endif %}"
+              list="metki-massy"
+              aria-label="Фильтр по массе груза в тоннах"
+            />
+          </div>
+          <datalist id="metki-massy">
+            <option value="0" label="0"></option>
+            <option value="2" label="2"></option>
+            <option value="4" label="4"></option>
+            <option value="6" label="6"></option>
+            <option value="8" label="8"></option>
+            <option value="10" label="10"></option>
+          </datalist>
+          <div class="metki-polzunka">
+            <span>0</span>
+            <span>10</span>
+          </div>
+          <button type="submit">Отобрать</button>
+        </form>
+
+        <div class="setka-gruzov">
+          {% for cargo in cargos %}
+          <a class="kartochka-gruza" href="/cargo/{{ cargo.cargo_id }}">
+            <img
+              class="foto-kartochki"
+              src="{{ cargo.image_url }}"
+              alt="{{ cargo.cargo_name }}"
+            />
+            <div class="telo-kartochki">
+              <h2>{{ cargo.cargo_name }}</h2>
+              <div class="niz-kartochki">
+                <span>Интерес <strong>{{ cargo.interest_marks }}</strong></span>
+                <span>Масса <strong>{{ cargo.cargo_mass }} т</strong> · Объём <strong>{{ cargo.cargo_volume }} м³</strong></span>
+              </div>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      </main>
+      <nav class="panel-vkladok-podyoma">
+        <a class="vkladka-podyoma" href="/lift_feed">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M10 9l6 3-6 3V9z"/></svg>
+          Лента
+        </a>
+        <a class="vkladka-podyoma" href="/cargo_addition">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          Добавление
+        </a>
+        <a class="vkladka-podyoma aktivna" href="/">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg>
+          Каталог
+        </a>
+      </nav>
+    </div>
+  </body>
+</html>

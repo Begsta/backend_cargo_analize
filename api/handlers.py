@@ -3,13 +3,13 @@ from fastapi.templating import Jinja2Templates
 from data.collections import cargo_lift_collection
 
 router = APIRouter()
-templates = Jinja2Templates(directory="../frontend_cargo_analize/templates/")
+templates = Jinja2Templates(directory="cargo_frontend/templates")
 
 
 @router.get("/")
 def get_cargo_tiles(request: Request, cargo_mass: str | None = None):
     try:
-        cargo_mass =  float(cargo_mass)
+        cargo_mass = float(cargo_mass)
     except (TypeError, ValueError):
         cargo_mass = None
     cargos = []
@@ -18,6 +18,8 @@ def get_cargo_tiles(request: Request, cargo_mass: str | None = None):
             continue
         if cargo_mass is not None and cargo["cargo_mass"] < cargo_mass:
             continue
+        # делаю копия из-за того, что меняю словарь пользователей лайкнувших видео
+        # на количество лайков
         copy_cargo = dict(cargo)
         copy_cargo["interest_marks"] = len(copy_cargo["interest_marks"])
         cargos.append(copy_cargo)
@@ -48,9 +50,13 @@ def get_cargo_detail(request: Request, cargo_id: int, next_video: bool = False):
                     None,
                 ),
                 "interest_marks": next(
-                    (len(cargo["interest_marks"]) for cargo in published if cargo["cargo_id"] == cargo_id),
+                    (
+                        len(cargo["interest_marks"])
+                        for cargo in published
+                        if cargo["cargo_id"] == cargo_id
+                    ),
                     None,
-                )
+                ),
             },
         )
 
@@ -59,12 +65,16 @@ def get_cargo_detail(request: Request, cargo_id: int, next_video: bool = False):
             return templates.TemplateResponse(
                 request=request,
                 name="lenta-podyoma.html",
-                context={"cargo": published[(idx+1) % len(published)],
-                "interest_marks": len(published[(idx+1) % len(published)]["interest_marks"])},
+                context={
+                    "cargo": published[(idx + 1) % len(published)],
+                    "interest_marks": len(
+                        published[(idx + 1) % len(published)]["interest_marks"]
+                    ),
+                },
             )
-        
 
 
+# При нажатии ленты, открывается первое попавшееся опубликованное видео
 @router.get("/lift_feed")
 def get_first_video(request: Request):
     for cargo in cargo_lift_collection:
