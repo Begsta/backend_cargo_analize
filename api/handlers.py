@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.session import get_db
 from models.cargo import Cargo
 from models.like import Like
-from models.user import User  # noqa: F401 — нужен SQLAlchemy для relationship("User")
+from models.user import User
 
 router = APIRouter()
 templates = Jinja2Templates(directory="cargo_front/templates")
