@@ -54,20 +54,27 @@
 
         <div class="setka-gruzov">
           {% for cargo in cargos %}
-          <a class="kartochka-gruza" href="/cargo/{{ cargo.cargo_id }}">
-            <img
-              class="foto-kartochki"
-              src="{{ cargo.image_url }}"
-              alt="{{ cargo.cargo_name }}"
-            />
-            <div class="telo-kartochki">
-              <h2>{{ cargo.cargo_name }}</h2>
-              <div class="niz-kartochki">
-                <span>Интерес <strong>{{ cargo.interest_marks }}</strong></span>
-                <span>Масса <strong>{{ cargo.cargo_mass }} т</strong> · Объём <strong>{{ cargo.cargo_volume }} м³</strong></span>
+          <article class="kartochka-gruza">
+            <a class="ssylka-kartochki" href="/cargo/{{ cargo.cargo_id }}">
+              <img
+                class="foto-kartochki"
+                src="{{ cargo.image_url }}"
+                alt="{{ cargo.cargo_name }}"
+              />
+              <div class="telo-kartochki">
+                <h2>{{ cargo.cargo_name }}</h2>
+                <div class="niz-kartochki">
+                  <span>Интерес <strong>{{ cargo.interest_marks }}</strong></span>
+                  <span>Масса <strong>{{ cargo.cargo_mass }} т</strong> · Объём <strong>{{ cargo.cargo_volume }} м³</strong></span>
+                </div>
               </div>
+            </a>
+            <div class="deystviya-kartochki">
+              <form action="/cargo/{{ cargo.cargo_id }}/delete" method="post">
+                <button type="submit" class="delete-btn">Удалить</button>
+              </form>
             </div>
-          </a>
+          </article>
           {% endfor %}
         </div>
       </main>

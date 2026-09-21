@@ -13,5 +13,24 @@ services:
       - minio-data:/data
     command: server /data --console-address ":9001"
 
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: cargo
+      POSTGRES_PASSWORD: cargo
+      POSTGRES_DB: cargo_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer:latest
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
 volumes:
   minio-data:
+  postgres_data:

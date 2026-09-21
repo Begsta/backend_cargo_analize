@@ -6,7 +6,7 @@ from api.handlers import router
 app = FastAPI(title="tiktok for cargo")
 
 app.include_router(router)
-app.mount("/static", StaticFiles(directory="cargo_frontend/static"), name="static")
+app.mount("/static", StaticFiles(directory="cargo_front/static"), name="static")
 
 
 if __name__ == "__main__":

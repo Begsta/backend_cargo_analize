@@ -399,6 +399,32 @@ textarea.pole-gruza {
   border-radius: 0;
 }
 
+.knopka-deystviya {
+  width: 100%;
+  margin-top: 18px;
+  padding: 14px;
+  background: var(--ugol);
+  border: 1px solid var(--ugol);
+  color: var(--belyj);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.knopka-deystviya:hover {
+  background: #000;
+}
+
+.knopka-opublikovat {
+  background: var(--wolff-krasnyj);
+  border-color: var(--wolff-krasnyj);
+}
+
+.knopka-opublikovat:hover {
+  background: #b80510;
+}
+
 /* —— каталог (плитка) —— */
 .forma-massy {
   display: flex;
@@ -528,13 +554,18 @@ textarea.pole-gruza {
 }
 
 .kartochka-gruza {
-  display: block;
-  text-decoration: none;
-  color: inherit;
+  display: flex;
+  flex-direction: column;
   background: var(--belyj);
   border: 1px solid var(--ramka-knopki);
   border-radius: 0;
   overflow: hidden;
+}
+
+.ssylka-kartochki {
+  display: block;
+  text-decoration: none;
+  color: inherit;
 }
 
 .kartochka-gruza:hover {
@@ -545,6 +576,55 @@ textarea.pole-gruza {
 .kartochka-gruza:hover .niz-kartochki,
 .kartochka-gruza:hover .niz-kartochki strong {
   color: var(--wolff-krasnyj);
+}
+
+.deystviya-kartochki {
+  display: flex;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
+.deystviya-kartochki form {
+  flex: 1;
+}
+
+.like-btn,
+.delete-btn {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 0;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  font-family: inherit;
+}
+
+.like-btn {
+  background: transparent;
+  color: var(--wolff-krasnyj);
+  border: 1px solid var(--wolff-krasnyj);
+}
+
+.like-btn:hover,
+.like-btn.liked {
+  background: var(--wolff-krasnyj);
+  color: var(--belyj);
+}
+
+.like-btn.liked:hover {
+  background: #b80510;
+  border-color: #b80510;
+}
+
+.delete-btn {
+  background: var(--ugol);
+  color: var(--belyj);
+  border: 1px solid var(--ugol);
+}
+
+.delete-btn:hover {
+  background: #000;
 }
 
 .foto-kartochki {
