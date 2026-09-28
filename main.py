@@ -1,11 +1,23 @@
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 import uvicorn
-from api.handlers import router
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-app = FastAPI(title="tiktok for cargo")
+from api.cargos import router as cargos_router
+from api.handlers import router
+from api.users import router as users_router
+
+app = FastAPI(title="WOLFF — веб-сервис грузов")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(router)
+app.include_router(cargos_router)
+app.include_router(users_router)
 app.mount("/static", StaticFiles(directory="cargo_front/static"), name="static")
 
 

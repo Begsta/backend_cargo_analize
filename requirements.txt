@@ -11,6 +11,7 @@ h11==0.16.0
 idna==3.19
 Jinja2==3.1.6
 Mako==1.4.1
+minio==7.2.15
 MarkupSafe==3.0.3
 psycopg2-binary==2.9.11
 pydantic==2.13.5

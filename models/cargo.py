@@ -5,6 +5,10 @@ from sqlalchemy.orm import relationship
 
 from db.base import Base
 
+STATUS_DRAFT = "draft"
+STATUS_PUBLISHED = "published"
+STATUS_DELETED = "deleted"
+
 
 def utc_now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)

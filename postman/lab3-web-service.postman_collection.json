@@ -1,0 +1,192 @@
+{
+  "info": {
+    "name": "Лабораторная 3 — веб-сервис WOLFF",
+    "description": "REST-методы домена груза и домена пользователя. Импорт: Insomnia → Import → Postman, либо Postman → Import.\n\nПорядок скриншотов 1–10: запросы 1–9 и аутентификация. Деавторизация — обязательная заглушка, запрос 11.\nПосле запроса 2 скопируйте cargo_id из ответа в переменную коллекции cargo_id (в Postman это делает тест запроса).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "cargo_id",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. GET список грузов с фильтром",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/cargos?cargo_mass=4",
+        "description": "Только published. cargo_mass=4 оставляет грузы с массой 4 т и больше. is_creator: 1, если создатель совпадает с пользователем singleton."
+      }
+    },
+    {
+      "name": "2. POST добавление груза с изображением и видео",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const data = pm.response.json();",
+              "if (data.cargo_id) pm.collectionVariables.set('cargo_id', String(data.cargo_id));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "cargo_name",
+              "value": "Панель стеновая ПС 30.15",
+              "type": "text"
+            },
+            {
+              "key": "cargo_description",
+              "value": "Черновик лабораторной 3",
+              "type": "text"
+            },
+            {
+              "key": "cargo_mass",
+              "value": "3",
+              "type": "text"
+            },
+            {
+              "key": "cargo_volume",
+              "value": "2",
+              "type": "text"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": ""
+            },
+            {
+              "key": "video",
+              "type": "file",
+              "src": ""
+            }
+          ]
+        },
+        "url": "{{base_url}}/api/cargos",
+        "description": "Выберите файлы image и video в клиенте. В поля БД пишутся латинские имена, сами байты — в MinIO. Статус draft и создатель выставляются на сервере."
+      }
+    },
+    {
+      "name": "3. GET черновик",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/cargos/draft",
+        "description": "Идентификатор в адресе не указывается. Не больше одного черновика на пользователя singleton."
+      }
+    },
+    {
+      "name": "4. PUT публикация",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": "{{base_url}}/api/cargos/{{cargo_id}}",
+        "description": "Единственный переход draft → published. Тело не передаётся: статус и дату формирования считает сервер. Вернуть в черновик нельзя."
+      }
+    },
+    {
+      "name": "5. GET лента без ид",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/cargos/feed",
+        "description": "Первый опубликованный груз."
+      }
+    },
+    {
+      "name": "6. GET лента по ид next=true",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/cargos/feed/{{cargo_id}}?next=true",
+        "description": "Следующий опубликованный груз. После последнего — снова первый."
+      }
+    },
+    {
+      "name": "7. POST лайк",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"interest\": 1\n}"
+        },
+        "url": "{{base_url}}/api/cargos/{{cargo_id}}/likes",
+        "description": "interest: 1 ставит отметку текущего пользователя, 0 снимает. Пользователя в теле передавать нельзя."
+      }
+    },
+    {
+      "name": "8. DELETE удаление",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{base_url}}/api/cargos/{{cargo_id}}",
+        "description": "Мягкое удаление: publication_status = deleted. Только свой груз. Ответ 204, удалённая запись клиенту не возвращается."
+      }
+    },
+    {
+      "name": "9. POST регистрация",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_login\": \"new_operator\",\n  \"user_name\": \"Новый оператор\"\n}"
+        },
+        "url": "{{base_url}}/api/users",
+        "description": "user_id назначает база. Поле user_id в запросе отклоняется."
+      }
+    },
+    {
+      "name": "10. POST аутентификация (заглушка)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_login\": \"new_operator\",\n  \"user_password\": \"secret\"\n}"
+        },
+        "url": "{{base_url}}/api/authentication",
+        "description": "Заглушка лабораторной 4. Пароль не проверяется и не хранится."
+      }
+    },
+    {
+      "name": "11. POST деавторизация (заглушка)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{base_url}}/api/deauthentication",
+        "description": "Заглушка лабораторной 4."
+      }
+    }
+  ]
+}

@@ -6,6 +6,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.current_user import get_current_user_id
 from db.session import get_db
 from models.cargo import Cargo
 from models.like import Like
@@ -13,11 +14,9 @@ from models.user import User
 
 router = APIRouter()
 templates = Jinja2Templates(directory="cargo_front/templates")
-
-CURRENT_USER_ID = 1
 DEFAULT_MEDIA_CARGO_ID = 4
 DEFAULT_IMAGE_URL = "/static/img/default-cargo.jpg"
-DEFAULT_VIDEO_URL = "http://localhost:9000/media/12466938_3840_2160_30fps.mp4"
+DEFAULT_VIDEO_URL = "http://localhost:9100/media/12466938_3840_2160_30fps.mp4"
 
 
 def utc_now() -> datetime:
@@ -54,7 +53,7 @@ async def load_default_media(db: AsyncSession) -> tuple[str, str]:
 async def get_user_draft(db: AsyncSession) -> Cargo | None:
     stmt = select(Cargo).where(
         Cargo.publication_status == "draft",
-        Cargo.creator_user_id == CURRENT_USER_ID,
+        Cargo.creator_user_id == get_current_user_id(),
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
@@ -208,7 +207,7 @@ async def create_draft(
                 cargo_volume=0,
                 created_at=utc_now(),
                 formed_at=utc_now(),
-                creator_user_id=CURRENT_USER_ID,
+                creator_user_id=get_current_user_id(),
             )
         )
         await db.commit()
