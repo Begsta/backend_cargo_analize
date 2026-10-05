@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Float, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from db.base import Base
@@ -23,8 +23,8 @@ class Cargo(Base):
     publication_status = Column(String(32), nullable=False)
     image_url = Column(String(512), nullable=False, default="")
     video_url = Column(String(512), nullable=False, default="")
-    cargo_mass = Column(Integer, nullable=False, default=0)
-    cargo_volume = Column(Integer, nullable=False, default=0)
+    cargo_mass = Column(Float, nullable=False, default=0)
+    cargo_volume = Column(Float, nullable=False, default=0)
     created_at = Column(DateTime, nullable=False, default=utc_now)
     formed_at = Column(DateTime, nullable=False, default=utc_now)
     creator_user_id = Column(

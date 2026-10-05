@@ -6,6 +6,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.storage import public_media_url
 from core.current_user import get_current_user_id
 from db.session import get_db
 from models.cargo import Cargo
@@ -34,6 +35,8 @@ def apply_default_media(
         cargo.image_url = image_url
     if not cargo.video_url:
         cargo.video_url = video_url
+    cargo.image_url = public_media_url(cargo.image_url)
+    cargo.video_url = public_media_url(cargo.video_url)
     return cargo
 
 
@@ -167,9 +170,6 @@ async def get_first_video(db: AsyncSession = Depends(get_db)):
 async def get_cargo_addition(request: Request, db: AsyncSession = Depends(get_db)):
     default_image, default_video = await load_default_media(db)
     draft = apply_default_media(await get_user_draft(db), default_image, default_video)
-    if draft is not None:
-        draft.image_url = default_image
-        draft.video_url = default_video
     empty = {
         "cargo_name": "",
         "cargo_description": "",
@@ -227,8 +227,8 @@ async def publish_draft(
         raise HTTPException(status_code=400, detail="Draft not found")
 
     try:
-        mass = int(float(cargo_mass.replace(",", ".")))
-        volume = int(float(cargo_volume.replace(",", ".")))
+        mass = float(cargo_mass.replace(",", "."))
+        volume = float(cargo_volume.replace(",", "."))
     except ValueError:
         mass, volume = 0, 0
 

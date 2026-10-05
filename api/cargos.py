@@ -50,13 +50,17 @@ async def _mark_counts(db: AsyncSession, cargo_ids: list[int]) -> dict[int, int]
     return {cargo_id: count for cargo_id, count in result.all()}
 
 
-async def _published(db: AsyncSession) -> list[Cargo]:
-    result = await db.execute(
-        select(Cargo)
-        .where(Cargo.publication_status == STATUS_PUBLISHED)
-        .order_by(Cargo.cargo_id)
-    )
-    return list(result.scalars().all())
+async def _feed_cargo(db: AsyncSession, cargo_id: int | None = None, *, next_item: bool = False) -> Cargo:
+    stmt = select(Cargo).where(Cargo.publication_status == STATUS_PUBLISHED)
+    if cargo_id is not None:
+        stmt = stmt.where(Cargo.cargo_id > cargo_id if next_item else Cargo.cargo_id == cargo_id)
+    result = await db.execute(stmt.order_by(Cargo.cargo_id).limit(1))
+    cargo = result.scalar_one_or_none()
+    if cargo is None and next_item:
+        return await _feed_cargo(db)
+    if cargo is None:
+        raise HTTPException(status_code=404, detail="Опубликованный груз не найден")
+    return cargo
 
 
 async def _visible(db: AsyncSession, cargo_id: int) -> Cargo:
@@ -137,7 +141,7 @@ async def _store_media(kind: str, upload: UploadFile) -> str:
 @router.get("", response_model=list[CargoOut], summary="Список опубликованных грузов")
 async def list_cargos(
     cargo_mass: float | None = Query(
-        default=None,
+        default=None, ge=0, allow_inf_nan=False,
         description="Фильтр: масса в тоннах и больше. 0 или пусто — без фильтра",
     ),
     db: AsyncSession = Depends(get_db),
@@ -154,11 +158,7 @@ async def list_cargos(
 
 @router.get("/feed", response_model=CargoOut, summary="Лента без идентификатора")
 async def feed_first(db: AsyncSession = Depends(get_db)) -> CargoOut:
-    cargos = await _published(db)
-    if not cargos:
-        raise HTTPException(status_code=404, detail="Нет опубликованных грузов")
-    return await _out(db, cargos[0])
-
+    return await _out(db, await _feed_cargo(db))
 
 @router.get(
     "/feed/{cargo_id}",
@@ -170,21 +170,7 @@ async def feed_by_id(
     next_item: bool = Query(False, alias="next"),
     db: AsyncSession = Depends(get_db),
 ) -> CargoOut:
-    cargos = await _published(db)
-    if not cargos:
-        raise HTTPException(status_code=404, detail="Нет опубликованных грузов")
-
-    if next_item:
-        for cargo in cargos:
-            if cargo.cargo_id > cargo_id:
-                return await _out(db, cargo)
-        return await _out(db, cargos[0])
-
-    for cargo in cargos:
-        if cargo.cargo_id == cargo_id:
-            return await _out(db, cargo)
-    raise HTTPException(status_code=404, detail="Груз не найден")
-
+    return await _out(db, await _feed_cargo(db, cargo_id, next_item=next_item))
 
 @router.get("/draft", response_model=CargoOut, summary="Черновик текущего пользователя")
 async def get_draft(db: AsyncSession = Depends(get_db)) -> CargoOut:
@@ -205,8 +191,8 @@ async def create_cargo(
     request: Request,
     cargo_name: str = Form(...),
     cargo_description: str = Form(""),
-    cargo_mass: float = Form(0),
-    cargo_volume: float = Form(0),
+    cargo_mass: float = Form(0, ge=0, allow_inf_nan=False),
+    cargo_volume: float = Form(0, ge=0, allow_inf_nan=False),
     image: UploadFile = File(...),
     video: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
@@ -249,8 +235,8 @@ async def create_cargo(
         publication_status=STATUS_DRAFT,
         image_url=image_name,
         video_url=video_name,
-        cargo_mass=int(cargo_mass),
-        cargo_volume=int(cargo_volume),
+        cargo_mass=cargo_mass,
+        cargo_volume=cargo_volume,
         created_at=now,
         formed_at=now,
         creator_user_id=user_id,

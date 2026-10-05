@@ -18,8 +18,8 @@ class CargoOut(BaseModel):
     video_url: str
     image_public_url: str
     video_public_url: str
-    cargo_mass: int
-    cargo_volume: int
+    cargo_mass: float
+    cargo_volume: float
     created_at: datetime
     formed_at: datetime
     creator_user_id: int

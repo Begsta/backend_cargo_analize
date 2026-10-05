@@ -83,8 +83,8 @@ python3 main.py
 | `publication_status` | varchar(32) | `draft`, `published` или `deleted`. Меняет только сервер |
 | `image_url` | varchar(512) | Латинское имя файла изображения в MinIO |
 | `video_url` | varchar(512) | Латинское имя файла видео в MinIO |
-| `cargo_mass` | integer | Масса, т |
-| `cargo_volume` | integer | Объём, м³ |
+| `cargo_mass` | double precision | Масса, т |
+| `cargo_volume` | double precision | Объём, м³ |
 | `created_at` | timestamp | Дата создания, ставит сервер |
 | `formed_at` | timestamp | Дата формирования, обновляется при публикации |
 | `creator_user_id` | integer, FK → `users.user_id` | Создатель. В этой лабораторной всегда singleton |
@@ -204,3 +204,10 @@ classDiagram
 **HTTPS.** HTTP внутри TLS: трафик шифруется, клиент проверяет сертификат сервера. Для этой лабораторной сервис поднят по HTTP на localhost.
 
 **OSI ISO.** Семь уровней. По этому сервису: прикладной (7) — HTTP и смысл `/api`, представления (6) — JSON и TLS при HTTPS, сеансовый (5) — в чистом виде почти не виден, транспортный (4) — TCP (порт 8000), сетевой (3) — IP, канальный (2) и физический (1) — сеть машины. HTTPS добавляет TLS между HTTP и TCP.
+
+## Проверка лабораторной
+
+Оценка и оставшиеся шаги защиты: [docs/lab3-review.md](docs/lab3-review.md).
+Редактируемая диаграмма для draw.io: [docs/lab3-classes.drawio](docs/lab3-classes.drawio).
+После обновления выполните `alembic upgrade head`: миграция 002 сохраняет дробные массу и объём.
+Проверки без PostgreSQL: `python -m unittest discover -s tests -v`.
