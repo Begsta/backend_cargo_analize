@@ -15,9 +15,8 @@ router = APIRouter()
 templates = Jinja2Templates(directory="cargo_front/templates")
 
 CURRENT_USER_ID = 1
-DEFAULT_MEDIA_CARGO_ID = 4
 DEFAULT_IMAGE_URL = "/static/img/default-cargo.jpg"
-DEFAULT_VIDEO_URL = "http://localhost:9000/media/12466938_3840_2160_30fps.mp4"
+DEFAULT_VIDEO_URL = "/static/vid/default-cargo.mp4"
 
 
 def utc_now() -> datetime:
@@ -36,19 +35,6 @@ def apply_default_media(
     if not cargo.video_url:
         cargo.video_url = video_url
     return cargo
-
-
-async def load_default_media(db: AsyncSession) -> tuple[str, str]:
-    result = await db.execute(
-        select(Cargo.image_url, Cargo.video_url).where(
-            Cargo.cargo_id == DEFAULT_MEDIA_CARGO_ID
-        )
-    )
-    row = result.one_or_none()
-    if row is None:
-        return DEFAULT_IMAGE_URL, DEFAULT_VIDEO_URL
-    _image_url, video_url = row
-    return DEFAULT_IMAGE_URL, video_url or DEFAULT_VIDEO_URL
 
 
 async def get_user_draft(db: AsyncSession) -> Cargo | None:
@@ -78,18 +64,15 @@ async def get_cargo_tiles(
     except (TypeError, ValueError):
         cargo_mass = None
 
-    # Как Hotel.is_deleted == False в методичке: в выдачу только «живые» записи.
     stmt = select(Cargo).where(Cargo.publication_status == "published")
 
-    # Как if search: stmt = stmt.where(Hotel.title.ilike(...))
     if cargo_mass:
         stmt = stmt.where(Cargo.cargo_mass >= cargo_mass)
 
     result = await db.execute(stmt)
     cargos = result.scalars().all()
-    default_image, default_video = await load_default_media(db)
     for cargo in cargos:
-        apply_default_media(cargo, default_image, default_video)
+        apply_default_media(cargo)
 
     like_counts = dict(
         (
@@ -120,17 +103,28 @@ async def get_cargo_detail(
 ):
 
     if next_video:
-        stmt = select(Cargo).where(Cargo.publication_status == "published")
+        stmt = (
+            select(Cargo)
+            .where(
+                Cargo.publication_status == "published",
+                Cargo.cargo_id > cargo_id,
+            )
+            .order_by(Cargo.cargo_id)
+            .limit(1)
+        )
         result = await db.execute(stmt)
-        cargos = result.scalars().all()
-        if not cargos:
+        cargo = result.scalar_one_or_none()
+        if cargo is None:
+            stmt = (
+                select(Cargo)
+                .where(Cargo.publication_status == "published")
+                .order_by(Cargo.cargo_id)
+                .limit(1)
+            )
+            result = await db.execute(stmt)
+            cargo = result.scalar_one_or_none()
+        if cargo is None:
             raise HTTPException(status_code=404, detail="No published cargos")
-
-        cargo = cargos[0]
-        for idx, item in enumerate(cargos):
-            if item.cargo_id == cargo_id:
-                cargo = cargos[(idx + 1) % len(cargos)]
-                break
     else:
         stmt = select(Cargo).where(
             Cargo.publication_status == "published",
@@ -141,8 +135,7 @@ async def get_cargo_detail(
         if cargo is None:
             raise HTTPException(status_code=404, detail="Cargo not found")
 
-    default_image, default_video = await load_default_media(db)
-    apply_default_media(cargo, default_image, default_video)
+    apply_default_media(cargo)
     return templates.TemplateResponse(
         request=request,
         name="lenta-podyoma.html",
@@ -155,7 +148,12 @@ async def get_cargo_detail(
 
 @router.get("/lift_feed")
 async def get_first_video(db: AsyncSession = Depends(get_db)):
-    stmt = select(Cargo).where(Cargo.publication_status == "published").limit(1)
+    stmt = (
+        select(Cargo)
+        .where(Cargo.publication_status == "published")
+        .order_by(Cargo.cargo_id)
+        .limit(1)
+    )
     result = await db.execute(stmt)
     cargo = result.scalar_one_or_none()
     if cargo is None:
@@ -166,17 +164,16 @@ async def get_first_video(db: AsyncSession = Depends(get_db)):
 
 @router.get("/cargo_addition")
 async def get_cargo_addition(request: Request, db: AsyncSession = Depends(get_db)):
-    default_image, default_video = await load_default_media(db)
-    draft = apply_default_media(await get_user_draft(db), default_image, default_video)
+    draft = apply_default_media(await get_user_draft(db))
     if draft is not None:
-        draft.image_url = default_image
-        draft.video_url = default_video
+        draft.image_url = DEFAULT_IMAGE_URL
+        draft.video_url = DEFAULT_VIDEO_URL
     empty = {
         "cargo_name": "",
         "cargo_description": "",
         "publication_status": "",
-        "image_url": default_image,
-        "video_url": default_video,
+        "image_url": DEFAULT_IMAGE_URL,
+        "video_url": DEFAULT_VIDEO_URL,
         "cargo_mass": "",
         "cargo_volume": "",
     }
@@ -245,16 +242,13 @@ async def publish_draft(
 
 @router.post("/cargo/{cargo_id}/delete")
 async def delete_cargo(cargo_id: int, db: AsyncSession = Depends(get_db)):
-    # Мы не используем ORM delete(), а выполняем сырой SQL-запрос на обновление флага
     update_query = """
         UPDATE cargos 
         SET publication_status = 'deleted' 
         WHERE cargo_id = :id
     """
     
-    # Выполняем запрос через курсор
     await db.execute(text(update_query), {"id": cargo_id})
     await db.commit()
     
-    # Перенаправляем пользователя обратно на главную страницу
     return RedirectResponse(url="/", status_code=303)
