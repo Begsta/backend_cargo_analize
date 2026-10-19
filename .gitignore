@@ -4,3 +4,7 @@ __pycache__/
 .env
 .idea/
 .vscode/
+.venv/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/

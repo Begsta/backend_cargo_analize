@@ -4,16 +4,17 @@ from math import isfinite
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.cargos import create_cargo
-from core.current_user import get_current_user_id
+from api.cargos import delete_cargo as delete_api_cargo
+from core.current_user import get_current_user
 from core.storage import public_media_url
 from db.session import get_db
 from models.cargo import Cargo
 from models.like import Like
-from models.user import User  # noqa: F401 — регистрация связанной модели SQLAlchemy
+from models.user import User
 
 router = APIRouter(include_in_schema=False)
 templates = Jinja2Templates(directory="cargo_front/templates")
@@ -41,10 +42,10 @@ def apply_default_media(
     return cargo
 
 
-async def get_user_draft(db: AsyncSession) -> Cargo | None:
+async def get_user_draft(db: AsyncSession, user_id: int) -> Cargo | None:
     stmt = select(Cargo).where(
         Cargo.publication_status == "draft",
-        Cargo.creator_user_id == get_current_user_id(),
+        Cargo.creator_user_id == user_id,
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
@@ -169,8 +170,12 @@ async def get_first_video(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/cargo_addition")
-async def get_cargo_addition(request: Request, db: AsyncSession = Depends(get_db)):
-    draft = apply_default_media(await get_user_draft(db))
+async def get_cargo_addition(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    draft = apply_default_media(await get_user_draft(db, user.user_id))
     empty = {
         "cargo_name": "",
         "cargo_description": "",
@@ -197,9 +202,15 @@ async def create_draft(
     image: UploadFile = File(...),
     video: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     await create_cargo(
-        request=request, cargo_name=cargo_name, image=image, video=video, db=db,
+        request=request,
+        cargo_name=cargo_name,
+        image=image,
+        video=video,
+        db=db,
+        user=user,
     )
     return RedirectResponse(url="/cargo_addition", status_code=303)
 
@@ -211,8 +222,9 @@ async def publish_draft(
     cargo_mass: str = Form(""),
     cargo_volume: str = Form(""),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    draft = await get_user_draft(db)
+    draft = await get_user_draft(db, user.user_id)
     if draft is None:
         raise HTTPException(status_code=400, detail="Draft not found")
 
@@ -220,9 +232,17 @@ async def publish_draft(
         mass = float(cargo_mass.replace(",", ".")) if cargo_mass.strip() else None
         volume = float(cargo_volume.replace(",", ".")) if cargo_volume.strip() else None
     except ValueError:
-        raise HTTPException(status_code=422, detail="Масса и объём должны быть числами") from None
-    if any(value is not None and (not isfinite(value) or value < 0) for value in (mass, volume)):
-        raise HTTPException(status_code=422, detail="Масса и объём должны быть конечными неотрицательными числами")
+        raise HTTPException(
+            status_code=422, detail="Масса и объём должны быть числами"
+        ) from None
+    if any(
+        value is not None and (not isfinite(value) or value < 0)
+        for value in (mass, volume)
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Масса и объём должны быть конечными неотрицательными числами",
+        )
 
     draft.cargo_name = cargo_name.strip() or draft.cargo_name
     draft.cargo_description = cargo_description if cargo_description.strip() else None
@@ -235,17 +255,10 @@ async def publish_draft(
 
 
 @router.post("/cargo/{cargo_id}/delete")
-async def delete_cargo(cargo_id: int, db: AsyncSession = Depends(get_db)):
-    # Мы не используем ORM delete(), а выполняем сырой SQL-запрос на обновление флага
-    update_query = """
-        UPDATE cargos 
-        SET publication_status = 'deleted' 
-        WHERE cargo_id = :id
-    """
-    
-    # Выполняем запрос через курсор
-    await db.execute(text(update_query), {"id": cargo_id})
-    await db.commit()
-    
-    # Перенаправляем пользователя обратно на главную страницу
+async def delete_cargo(
+    cargo_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await delete_api_cargo(cargo_id=cargo_id, db=db, user=user)
     return RedirectResponse(url="/", status_code=303)

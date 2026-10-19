@@ -22,7 +22,7 @@ from api.serializers import (
     LikeOut,
     cargo_to_out,
 )
-from core.current_user import get_current_user_id
+from core.current_user import get_current_user, get_optional_user
 from core.storage import (
     MAX_FILE_BYTES,
     StorageError,
@@ -43,6 +43,12 @@ from models.like import Like
 from models.user import User
 
 router = APIRouter(prefix="/api/cargos", tags=["Грузы"])
+AUTH_RESPONSES = {
+    401: {"description": "Нет действующей сессии"},
+    403: {"description": "Чужой груз или недопустимый Origin"},
+    503: {"description": "Redis или хранилище файлов недоступно"},
+}
+PUBLIC_SECURITY = {"security": [{}]}
 
 FORBIDDEN_CLIENT_FIELDS = {
     "cargo_id",
@@ -66,10 +72,14 @@ async def _mark_counts(db: AsyncSession, cargo_ids: list[int]) -> dict[int, int]
     return {cargo_id: count for cargo_id, count in result.all()}
 
 
-async def _feed_cargo(db: AsyncSession, cargo_id: int | None = None, *, next_item: bool = False) -> Cargo:
+async def _feed_cargo(
+    db: AsyncSession, cargo_id: int | None = None, *, next_item: bool = False
+) -> Cargo:
     stmt = select(Cargo).where(Cargo.publication_status == STATUS_PUBLISHED)
     if cargo_id is not None:
-        stmt = stmt.where(Cargo.cargo_id > cargo_id if next_item else Cargo.cargo_id == cargo_id)
+        stmt = stmt.where(
+            Cargo.cargo_id > cargo_id if next_item else Cargo.cargo_id == cargo_id
+        )
     result = await db.execute(stmt.order_by(Cargo.cargo_id).limit(1))
     cargo = result.scalar_one_or_none()
     if cargo is None and next_item:
@@ -97,8 +107,9 @@ def _ensure_owner(cargo: Cargo, user_id: int) -> None:
         raise HTTPException(status_code=403, detail="Можно изменять только свои грузы")
 
 
-async def _outs(db: AsyncSession, cargos: list[Cargo]) -> list[CargoOut]:
-    user_id = get_current_user_id()
+async def _outs(
+    db: AsyncSession, cargos: list[Cargo], user_id: int | None
+) -> list[CargoOut]:
     counts = await _mark_counts(db, [cargo.cargo_id for cargo in cargos])
     return [
         cargo_to_out(
@@ -110,17 +121,21 @@ async def _outs(db: AsyncSession, cargos: list[Cargo]) -> list[CargoOut]:
     ]
 
 
-async def _out(db: AsyncSession, cargo: Cargo) -> CargoOut:
-    return (await _outs(db, [cargo]))[0]
+async def _out(db: AsyncSession, cargo: Cargo, user_id: int | None) -> CargoOut:
+    return (await _outs(db, [cargo], user_id))[0]
 
 
-async def _feed_out(db: AsyncSession, cargo: Cargo) -> CargoFeedOut:
-    out = await _out(db, cargo)
+async def _feed_out(
+    db: AsyncSession, cargo: Cargo, user_id: int | None
+) -> CargoFeedOut:
+    out = await _out(db, cargo, user_id)
+    if user_id is None:
+        return CargoFeedOut(**out.model_dump(), is_liked=0)
     mark = await db.execute(
         select(Like.mark_id)
         .where(
             Like.cargo_id == cargo.cargo_id,
-            Like.user_id == get_current_user_id(),
+            Like.user_id == user_id,
         )
         .limit(1)
     )
@@ -138,15 +153,6 @@ async def _reject_system_fields(request: Request) -> None:
         raise HTTPException(
             status_code=422,
             detail=f"Системные поля нельзя передавать: {names}",
-        )
-
-
-async def _require_user(db: AsyncSession, user_id: int) -> None:
-    user = await db.get(User, user_id)
-    if user is None:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Пользователь {user_id} из singleton не найден в таблице users",
         )
 
 
@@ -170,57 +176,101 @@ async def _store_media(kind: str, upload: UploadFile) -> str:
     return object_name
 
 
-@router.get("", response_model=list[CargoOut], summary="Список опубликованных грузов")
+@router.get(
+    "",
+    response_model=list[CargoOut],
+    summary="Список опубликованных грузов",
+    description="Публичное чтение независимо от cookie. Для гостя is_creator=0.",
+    openapi_extra=PUBLIC_SECURITY,
+)
 async def list_cargos(
     cargo_mass: float | None = Query(
-        default=None, ge=0, allow_inf_nan=False,
+        default=None,
+        ge=0,
+        allow_inf_nan=False,
         description="Фильтр: масса в тоннах и больше. 0 или пусто — без фильтра",
     ),
     db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
 ) -> list[CargoOut]:
     if cargo_mass is not None and cargo_mass < 0:
-        raise HTTPException(status_code=422, detail="Масса в фильтре не может быть отрицательной")
+        raise HTTPException(
+            status_code=422, detail="Масса в фильтре не может быть отрицательной"
+        )
 
     stmt = select(Cargo).where(Cargo.publication_status == STATUS_PUBLISHED)
     if cargo_mass:
         stmt = stmt.where(Cargo.cargo_mass >= cargo_mass)
     result = await db.execute(stmt.order_by(Cargo.cargo_id))
-    return await _outs(db, list(result.scalars().all()))
+    return await _outs(db, list(result.scalars().all()), user.user_id if user else None)
 
 
-@router.get("/feed", response_model=CargoFeedOut, summary="Лента опубликованных грузов")
+@router.get(
+    "/feed",
+    response_model=CargoFeedOut,
+    summary="Лента опубликованных грузов",
+    description="Без ID — первый груз; с cargo_id — указанный; с next=true — следующий. "
+    "Для гостя is_liked=0, после входа — личный лайк из сессии.",
+    openapi_extra=PUBLIC_SECURITY,
+)
 async def feed(
     cargo_id: int | None = Query(default=None, gt=0),
     next_item: bool = Query(
-        False, alias="next", description="Следующий после cargo_id; после последнего — первый",
+        False,
+        alias="next",
+        description="Следующий после cargo_id; после последнего — первый",
     ),
     db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
 ) -> CargoFeedOut:
     if next_item and cargo_id is None:
         raise HTTPException(status_code=422, detail="Для next=true укажите cargo_id")
-    return await _feed_out(db, await _feed_cargo(db, cargo_id, next_item=next_item))
+    return await _feed_out(
+        db,
+        await _feed_cargo(db, cargo_id, next_item=next_item),
+        user.user_id if user else None,
+    )
 
-@router.get("/draft", response_model=CargoOut, summary="Черновик текущего пользователя")
-async def get_draft(db: AsyncSession = Depends(get_db)) -> CargoOut:
+
+@router.get(
+    "/draft",
+    response_model=CargoOut,
+    summary="Свой черновик (нужен вход)",
+    description="ID пользователя берётся из сессии. Чужие черновики не выдаются.",
+    responses=AUTH_RESPONSES,
+)
+async def get_draft(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> CargoOut:
     result = await db.execute(
         select(Cargo).where(
             Cargo.publication_status == STATUS_DRAFT,
-            Cargo.creator_user_id == get_current_user_id(),
+            Cargo.creator_user_id == user.user_id,
         )
     )
     draft = result.scalar_one_or_none()
     if draft is None:
         raise HTTPException(status_code=404, detail="Черновик не найден")
-    return await _out(db, draft)
+    return await _out(db, draft, user.user_id)
 
 
-@router.post("", response_model=CargoOut, status_code=201, summary="Добавление груза")
+@router.post(
+    "",
+    response_model=CargoOut,
+    status_code=201,
+    summary="Создать свой черновик",
+    description="Нужна сессия. Только название, файл фото и файл видео. "
+    "Создатель, статус и даты вычисляются на сервере. Файлы — в MinIO.",
+    responses=AUTH_RESPONSES,
+)
 async def create_cargo(
     request: Request,
     cargo_name: str = Form(...),
     image: UploadFile = File(...),
     video: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> CargoOut:
     await _reject_system_fields(request)
     extra_fields = set((await request.form()).keys()) - {"cargo_name", "image", "video"}
@@ -230,8 +280,7 @@ async def create_cargo(
             detail="Для создания нужны только cargo_name, image и video. "
             "Описание, массу и объём можно передать при публикации через PUT",
         )
-    user_id = get_current_user_id()
-    await _require_user(db, user_id)
+    user_id = user.user_id
 
     name = cargo_name.strip()
     if not name:
@@ -280,21 +329,24 @@ async def create_cargo(
             detail="У пользователя уже есть черновик",
         ) from None
     await db.refresh(cargo)
-    return await _out(db, cargo)
+    return await _out(db, cargo, user.user_id)
 
 
 @router.put(
     "/{cargo_id}",
     response_model=CargoOut,
     summary="Публикация черновика",
+    description="Только свой черновик после входа. Описание, масса и объём необязательны.",
+    responses=AUTH_RESPONSES,
 )
 async def publish_cargo(
     cargo_id: int,
     body: CargoPublishIn | None = None,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> CargoOut:
     cargo = await _visible(db, cargo_id)
-    _ensure_owner(cargo, get_current_user_id())
+    _ensure_owner(cargo, user.user_id)
     if cargo.publication_status != STATUS_DRAFT:
         raise HTTPException(
             status_code=409,
@@ -307,16 +359,23 @@ async def publish_cargo(
     cargo.formed_at = utc_now()
     await db.commit()
     await db.refresh(cargo)
-    return await _out(db, cargo)
+    return await _out(db, cargo, user.user_id)
 
 
-@router.delete("/{cargo_id}", status_code=204, summary="Мягкое удаление своего груза")
+@router.delete(
+    "/{cargo_id}",
+    status_code=204,
+    summary="Мягкое удаление своего груза",
+    description="После входа. Своему грузу присваивается deleted; чужой изменить нельзя.",
+    responses=AUTH_RESPONSES,
+)
 async def delete_cargo(
     cargo_id: int,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> None:
     cargo = await _visible(db, cargo_id)
-    _ensure_owner(cargo, get_current_user_id())
+    _ensure_owner(cargo, user.user_id)
     cargo.publication_status = STATUS_DELETED
     await db.commit()
 
@@ -325,14 +384,16 @@ async def delete_cargo(
     "/{cargo_id}/likes",
     response_model=LikeOut,
     summary="Отметка интереса текущего пользователя",
+    description="После входа. interest=1 ставит лайк, 0 снимает. Пользователь берётся из сессии.",
+    responses=AUTH_RESPONSES,
 )
 async def set_like(
     cargo_id: int,
     body: LikeIn,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> LikeOut:
-    user_id = get_current_user_id()
-    await _require_user(db, user_id)
+    user_id = user.user_id
 
     result = await db.execute(
         select(Cargo).where(

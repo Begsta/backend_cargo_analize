@@ -1,7 +1,21 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   minio:
     image: minio/minio:latest
     ports:
+      - "127.0.0.1:9000:9000"
       - "9100:9000"
       - "9101:9001"
     environment:
@@ -31,5 +45,8 @@ services:
       - postgres
 
 volumes:
+  redis-data:
   minio-data:
+    external: true
+    name: web_minio-data
   postgres_data:

@@ -1,4 +1,5 @@
 aiofiles==25.1.0
+argon2-cffi==25.1.0
 alembic==1.19.1
 annotated-doc==0.0.5
 annotated-types==0.8.0
@@ -19,7 +20,7 @@ pydantic-settings==2.15.0
 pydantic_core==2.46.5
 python-dotenv==1.2.3
 python-multipart==0.0.32
-ruff==0.16.8
+redis>=5,<9
 SQLAlchemy==2.0.52
 starlette==1.6.0
 typing-inspection==0.4.4

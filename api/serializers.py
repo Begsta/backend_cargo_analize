@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
 from core.storage import public_media_url
 from models.cargo import Cargo
@@ -51,7 +51,7 @@ class CargoPublishIn(BaseModel):
 
 
 class LikeIn(BaseModel):
-    """0 снимает отметку интереса, 1 ставит. Автор берётся из singleton."""
+    """0 снимает отметку интереса, 1 ставит. Автор берётся из сессии."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -69,6 +69,7 @@ class UserRegisterIn(BaseModel):
 
     user_login: str = Field(min_length=1, max_length=64)
     user_name: str = Field(min_length=1, max_length=128)
+    user_password: SecretStr = Field(min_length=8, max_length=128)
 
 
 class UserOut(BaseModel):
@@ -81,15 +82,17 @@ class AuthenticationIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     user_login: str = Field(min_length=1, max_length=64)
-    user_password: str = Field(min_length=1, max_length=128)
+    user_password: SecretStr = Field(min_length=1, max_length=128)
 
 
-class StubOut(BaseModel):
-    implemented: bool = False
-    detail: str
+class AuthenticationOut(BaseModel):
+    user: UserOut
+    expires_in: int = Field(description="Срок действия сессии в секундах")
 
 
-def cargo_to_out(cargo: Cargo, *, interest_marks: int, current_user_id: int) -> CargoOut:
+def cargo_to_out(
+    cargo: Cargo, *, interest_marks: int, current_user_id: int | None
+) -> CargoOut:
     return CargoOut(
         cargo_id=cargo.cargo_id,
         cargo_name=cargo.cargo_name,

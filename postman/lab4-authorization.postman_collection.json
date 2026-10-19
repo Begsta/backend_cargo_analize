@@ -1,0 +1,837 @@
+{
+  "info": {
+    "name": "Лабораторная 4 — WOLFF — сессии и cookie",
+    "description": "10 методов API, 17 сценариев проверки. Для гостевых проверок cookie jar отключён; в авторизованных вручную включён Cookie header. Указать настоящие файлы в запросе 05. Для переноса сессии из Swagger скопировать Application → Cookies → session_id в Variables.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "user_login",
+      "value": "lab4_operator"
+    },
+    {
+      "key": "user_password",
+      "value": "Demo-password-2026"
+    },
+    {
+      "key": "cookie_name",
+      "value": "session_id"
+    },
+    {
+      "key": "session_id",
+      "value": ""
+    },
+    {
+      "key": "cargo_id",
+      "value": ""
+    },
+    {
+      "key": "feed_cargo_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Регистрация с паролем",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/users",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "users"
+          ]
+        },
+        "description": "Подготовка. Если логин занят, изменить user_login в Variables. Регистрация сама не выполняет вход.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_login\": \"{{user_login}}\",\n  \"user_name\": \"Оператор лабораторной 4\",\n  \"user_password\": \"{{user_password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "02 Вход — получить session_id",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/authentication",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "authentication"
+          ]
+        },
+        "description": "Можно вместо этого войти в Swagger и вручную скопировать cookie из Application в переменную session_id. В ответе нет JWT: используется Redis-сессия.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_login\": \"{{user_login}}\",\n  \"user_password\": \"{{user_password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const header = pm.response.headers.get(\"Set-Cookie\") || \"\"; const pair = header.split(\";\")[0]; const index = pair.indexOf(\"=\"); if (index > 0) { pm.collectionVariables.set(\"cookie_name\", pair.slice(0,index)); pm.collectionVariables.set(\"session_id\", pair.slice(index+1)); } }"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "03 Список — гость",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/cargos?cargo_mass=4",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos"
+          ],
+          "query": [
+            {
+              "key": "cargo_mass",
+              "value": "4"
+            }
+          ]
+        },
+        "description": "Рис. 4. Cookie header отсутствует, cookie jar отключён. Ожидается 200."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "04 Список — с cookie",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "{{cookie_name}}={{session_id}}",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos?cargo_mass=4",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos"
+          ],
+          "query": [
+            {
+              "key": "cargo_mass",
+              "value": "4"
+            }
+          ]
+        },
+        "description": "Рис. 5. Ручной заголовок Cookie включён галочкой. Чтение также возвращает 200."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "05 Создать свой черновик",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "{{cookie_name}}={{session_id}}",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos"
+          ]
+        },
+        "description": "Выбрать реальные файлы. Ровно 3 поля; создатель назначается из сессии.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "cargo_name",
+              "value": "Панель лабораторной 4",
+              "type": "text"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": []
+            },
+            {
+              "key": "video",
+              "type": "file",
+              "src": []
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "if (pm.response.code === 201) { pm.collectionVariables.set(\"cargo_id\", String(pm.response.json().cargo_id)); pm.test(\"Создатель из сессии\", () => pm.expect(pm.response.json().is_creator).to.eql(1)); }"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "06 Свой черновик",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "{{cookie_name}}={{session_id}}",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/draft",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "draft"
+          ]
+        },
+        "description": "Чужой черновик получить нельзя. Для гостя 401."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "07 Публикация — гость, 401",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/{{cargo_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "{{cargo_id}}"
+          ]
+        },
+        "description": "Рис. 6. Cookie jar отключён, Cookie header отсутствует. Состояние груза не изменяется.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cargo_description\": \"Попытка гостя\",\n  \"cargo_mass\": 5.5,\n  \"cargo_volume\": 2\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "08 Публикация — владелец, 200",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "{{cookie_name}}={{session_id}}",
+            "type": "text",
+            "disabled": false
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/{{cargo_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "{{cargo_id}}"
+          ]
+        },
+        "description": "Рис. 7. Тот же ID, но действующая cookie владельца. Чужой владелец получит 403.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cargo_description\": \"Публикация вошедшим пользователем\",\n  \"cargo_mass\": 5.5,\n  \"cargo_volume\": 2\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if(pm.response.code===200) { const c=pm.response.json(); pm.test(\"Опубликован с нужными полями\",()=>{pm.expect(c.publication_status).to.eql(\"published\");pm.expect(c.cargo_mass).to.eql(5.5);}); }"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "09 Лента без ID",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "{{cookie_name}}={{session_id}}",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/feed",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "feed"
+          ]
+        },
+        "description": ""
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if(pm.response.code===200) pm.collectionVariables.set(\"feed_cargo_id\", String(pm.response.json().cargo_id));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "10 Лента — следующий",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "{{cookie_name}}={{session_id}}",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/feed?cargo_id={{feed_cargo_id}}&next=true",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "feed"
+          ],
+          "query": [
+            {
+              "key": "cargo_id",
+              "value": "{{feed_cargo_id}}"
+            },
+            {
+              "key": "next",
+              "value": "true"
+            }
+          ]
+        },
+        "description": ""
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "11 Лайк текущего пользователя",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "{{cookie_name}}={{session_id}}",
+            "type": "text",
+            "disabled": false
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/{{cargo_id}}/likes",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "{{cargo_id}}",
+            "likes"
+          ]
+        },
+        "description": "",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"interest\": 1\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "12 Лента — проверить личный лайк",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "{{cookie_name}}={{session_id}}",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/feed?cargo_id={{cargo_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "feed"
+          ],
+          "query": [
+            {
+              "key": "cargo_id",
+              "value": "{{cargo_id}}"
+            }
+          ]
+        },
+        "description": ""
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if(pm.response.code===200) pm.test(\"is_liked=1\",()=>pm.expect(pm.response.json().is_liked).to.eql(1));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "13 Снять лайк",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "{{cookie_name}}={{session_id}}",
+            "type": "text",
+            "disabled": false
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/{{cargo_id}}/likes",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "{{cargo_id}}",
+            "likes"
+          ]
+        },
+        "description": "",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"interest\": 0\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "14 Выход и отзыв сессии",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "{{cookie_name}}={{session_id}}",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/deauthentication",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "deauthentication"
+          ]
+        },
+        "description": "Сохраняем старое значение session_id для проверки повторного использования следующим запросом."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "15 Старая cookie после выхода — 401",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "{{cookie_name}}={{session_id}}",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/draft",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "draft"
+          ]
+        },
+        "description": ""
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "16 Список после выхода — 200",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "{{cookie_name}}={{session_id}}",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos"
+          ]
+        },
+        "description": ""
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "17 Удалить свой груз (после повторного входа)",
+      "protocolProfileBehavior": {
+        "disableCookies": true
+      },
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "{{cookie_name}}={{session_id}}",
+            "type": "text",
+            "disabled": false
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/{{cargo_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "{{cargo_id}}"
+          ]
+        },
+        "description": "Дополнительная проверка. Сначала повторно выполнить запрос 02. Не удалять груз до скриншотов публикации и лайка."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    }
+  ]
+}
