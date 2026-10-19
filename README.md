@@ -1,213 +1,158 @@
-# Веб-сервис грузов WOLFF
+# Веб-сервис WOLFF — лабораторная 3
 
-Лабораторная 3: REST-веб-сервис бэкенда для SPA. Данные читаются и меняются через ORM (SQLAlchemy), файлы изображения и видео складываются в MinIO. Авторизация не реализуется: во всех методах груза текущий пользователь задан константой в функции-singleton.
-
-Страницы предыдущих лабораторных (каталог, лента, добавление) по-прежнему открываются с того же процесса. Новый контракт для SPA — адреса с префиксом `/api`.
-
-## Запуск
-
-```bash
-cd backend_cargo_analize
-cp .env.example .env
-docker compose up -d
-pip install -r requirements.txt
-alembic upgrade head
-docker compose exec -T postgres psql -U cargo -d cargo_db < db/seed.sql
-python3 main.py
-```
-
-- Приложение и API: http://127.0.0.1:8000
-- OpenAPI: http://127.0.0.1:8000/docs
-- Adminer: http://localhost:8080 — сервер `postgres`, логин и пароль `cargo`, база `cargo_db`
-- Postgres с хоста: порт `5433`
-- MinIO API: http://localhost:9100 , консоль: http://localhost:9101 (`root` / `rootpassword`). Порты 9000–9004 на этой машине заняты, поэтому наружу MinIO выведен на 9100 и 9101.
-- Коллекция запросов: `postman/lab3-web-service.postman_collection.json` (импорт в Insomnia или Postman)
-
-Пользователь singleton — строка `users.user_id = 1`. Если её ещё нет, `db/seed.sql` создаёт логин `wolff`.
-
-## Текущий пользователь
-
-Файл `core/current_user.py`, функция `get_current_user_id`. Константа `1` записывается один раз и дальше возвращается тот же идентификатор. Её вызывают методы домена груза: список (`is_creator`), черновик, создание, публикация, удаление и лайк. Клиент не передаёт создателя.
+API содержит **10 HTTP-операций**: 7 в домене грузов и 3 в домене пользователей.
+HTML-страницы предыдущих лабораторных работают отдельно и не включены в Swagger.
+Коллекция для Postman: [10 методов](postman/lab3-corrected.postman_collection.json).
 
 ## HTTP-методы
 
-Системные поля клиент на запись не передаёт: `cargo_id`, `publication_status`, `creator_user_id`, `created_at`, `formed_at`. Их выставляет сервер. Если прислать их в форме создания груза, ответ `422`. Во входных JSON-схемах лишние поля тоже запрещены (`extra=forbid`): `user_id` в регистрации и лайке даёт `422`. Удалённые грузы (`deleted`) ни один GET не возвращает.
+| № | Метод | URL | Входные данные и результат |
+|---|---|---|---|
+| 1 | GET | `/api/cargos?cargo_mass=4` | Только опубликованные грузы с массой от 4 т. Без фильтра или с `0` — все опубликованные. `is_creator`: 1 для своего груза, 0 для чужого |
+| 2 | GET | `/api/cargos/feed` | Один опубликованный груз. Без параметров — первый; `?cargo_id=27` — указанный; `?cargo_id=27&next=true` — следующий по ID, после последнего снова первый. `is_liked`: личный лайк 0/1 |
+| 3 | GET | `/api/cargos/draft` | Единственный черновик пользователя singleton. ID не передаётся. Если черновика нет — 404 |
+| 4 | POST | `/api/cargos` | Создаёт черновик. Только 3 обязательных поля multipart/form-data: `cargo_name`, файл `image`, файл `video`. Ответ 201 |
+| 5 | PUT | `/api/cargos/{cargo_id}` | Публикует свой черновик. Можно передать JSON с необязательными `cargo_description`, `cargo_mass`, `cargo_volume`; можно без тела. Ответ 200 |
+| 6 | DELETE | `/api/cargos/{cargo_id}` | Мягко удаляет свой черновик или опубликованный груз. Ответ 204 без тела |
+| 7 | POST | `/api/cargos/{cargo_id}/likes` | JSON `{"interest": 1}` ставит личный лайк, `{"interest": 0}` снимает. Автор определяется на сервере |
+| 8 | POST | `/api/users` | Регистрация: JSON с `user_login`, `user_name`. ID назначается БД. Ответ 201 |
+| 9 | POST | `/api/authentication` | Заглушка: JSON с `user_login`, `user_password`. Возвращает `implemented: false` |
+| 10 | POST | `/api/deauthentication` | Заглушка без тела. Возвращает `implemented: false` |
 
-### Домен груза
+Лента — один метод с разными query-параметрами. Прежний API-адрес
+`/api/cargos/feed/{cargo_id}?next=true` заменён на
+`/api/cargos/feed?cargo_id={cargo_id}&next=true`.
+Без `cargo_id` параметр `next=true` возвращает 422. Скрытые HTML-маршруты
+`/cargo/{cargo_id}` и `/lift_feed` продолжают работать по прежним адресам.
 
-| Метод | URL | Назначение |
-|---|---|---|
-| GET | `/api/cargos?cargo_mass=` | Список только опубликованных. Фильтр как в лабораторной 1: масса в тоннах и больше. `0` или пустой параметр — все опубликованные. `is_creator`: `1`, если создатель совпадает с singleton, иначе `0` |
-| GET | `/api/cargos/feed` | Лента без идентификатора: первый опубликованный груз |
-| GET | `/api/cargos/feed/{cargo_id}?next=true` | Лента по идентификатору. `next=true` — следующий опубликованный, после последнего снова первый. Без `next` — сам груз, если он опубликован |
-| GET | `/api/cargos/draft` | Черновик текущего пользователя. Идентификатор в адресе не указывается, черновик не больше одного |
-| POST | `/api/cargos` | Добавление черновика. Поля формы: `cargo_name`, `cargo_description`, `cargo_mass`, `cargo_volume`, файлы `image` и `video`. В `image_url` и `video_url` пишутся латинские имена, байты — в бакет MinIO `cargo-media` |
-| PUT | `/api/cargos/{cargo_id}` | Публикация: единственный переход `draft` → `published`. Тело не принимается. Чужой груз — 403, уже опубликованный — 409 |
-| DELETE | `/api/cargos/{cargo_id}` | Мягкое удаление своего груза: статус `deleted`, строка остаётся. Ответ `204`, тело не отдаётся |
-| POST | `/api/cargos/{cargo_id}/likes` | Отметка интереса текущего пользователя. JSON `{"interest": 0}` снимает, `{"interest": 1}` ставит. Только у опубликованного груза |
+`is_creator` сравнивает создателя с текущим пользователем. `is_liked` в ответе
+ленты проверяет наличие строки в `cargo_interest_marks` для текущего
+пользователя и показанного груза. `interest_marks` — общее число лайков всех
+пользователей. Эти три значения имеют разный смысл: чужой груз может иметь
+`is_creator: 0, is_liked: 1`, а свой — `is_creator: 1, is_liked: 0`.
 
-### Домен пользователя
+## Создание и публикация
 
-| Метод | URL | Назначение |
-|---|---|---|
-| POST | `/api/users` | Регистрация. JSON: `user_login`, `user_name`. `user_id` назначает база |
-| POST | `/api/authentication` | Заглушка лабораторной 4. Логин и пароль не проверяются |
-| POST | `/api/deauthentication` | Заглушка лабораторной 4 |
+До кнопки «Далее» нужны **фото, видео и название**. POST принимает ровно эти
+три поля. Системные и дополнительные поля в этой форме запрещены (422).
+Форма HTML `/cargo_addition` тоже отправляет оба файла в MinIO.
 
-### Статусы
+Описание, масса и объём нового черновика равны SQL `NULL` и JSON `null`.
+После создания их можно заполнить при публикации через PUT:
 
-У создателя два разных метода, произвольная смена статуса запрещена.
+```json
+{
+  "cargo_description": "Подъём панели башенным краном",
+  "cargo_mass": 5.5,
+  "cargo_volume": 2
+}
+```
 
-- POST создаёт `draft`
-- PUT переводит только `draft` → `published` и обновляет `formed_at`
-- DELETE переводит свой `draft` или `published` → `deleted`
-- Обратно в `draft` метода нет
+Все три поля необязательные. Если поле не передано, его текущее значение
+сохраняется; `null` явно очищает значение. Пустое описание сохраняется как
+`NULL`. Для массы и объёма разрешены конечные неотрицательные числа; `0`
+сохраняется числом. PUT без тела публикует черновик без добавления характеристик.
+После публикации этот PUT повторно использовать для редактирования нельзя.
+
+Файлы отправляются как multipart-файлы, а не URL. В Postman для `image` и `video`
+выбирается тип File. Заголовок multipart Content-Type вручную не устанавливается:
+клиент добавляет boundary. В MinIO используется бакет `cargo-media`; имена
+объектов генерируются как `image-{uuid}.png` и `video-{uuid}.mp4` на латинице.
+В БД сохраняются имена объектов; поля ответа `image_public_url` и
+`video_public_url` содержат готовые ссылки. Принимаемые типы и ограничение
+30 МиБ на файл описаны в `core/storage.py`.
+
+## Пользователь и статусы
+
+`core/current_user.py:get_current_user_id()` — функция-singleton. При первом
+вызове она запоминает `user_id = 1`, затем возвращает его во всех операциях.
+В лабораторной 3 регистрации и заглушки входа/выхода не меняют этого пользователя.
+В таблице `users` должна существовать запись с ID 1.
+
+Допустимые переходы: `draft → published`, `draft → deleted`,
+`published → deleted`. Возврат в черновик запрещён. Публикация и удаление
+чужого груза возвращают 403; публикация уже опубликованного — 409.
+Удалённые записи не выдаются в списке, ленте и черновике. Лайк разрешён
+только для опубликованного груза. Повторная установка или отмена лайка
+не создаёт дубликатов и не уменьшает счётчик ниже существующих отметок.
+
+`cargo_id`, `publication_status`, `creator_user_id`, даты, а также
+несуществующие в этой модели поля модератора/завершения не принимаются от
+клиента. Статусы, создатель и даты заполняются сервером. В JSON лишние поля
+запрещены схемами с `extra="forbid"`.
 
 ## Таблицы базы данных
 
-### `users`
+### users
 
-| Поле | Тип | Смысл |
+| Поле | Тип | Назначение |
 |---|---|---|
-| `user_id` | integer, PK | Идентификатор, назначает база |
-| `user_login` | varchar(64), unique | Логин |
-| `user_name` | varchar(128) | Имя |
+| user_id | integer, PK | ID пользователя, назначается БД |
+| user_login | varchar(64), UNIQUE, NOT NULL | Уникальный логин |
+| user_name | varchar(128), NOT NULL | Отображаемое имя |
 
-### `cargos`
+### cargos
 
-| Поле | Тип | Смысл |
+| Поле | Тип | Назначение |
 |---|---|---|
-| `cargo_id` | integer, PK | Идентификатор, назначает база |
-| `cargo_name` | varchar(256) | Название |
-| `cargo_description` | text | Описание |
-| `publication_status` | varchar(32) | `draft`, `published` или `deleted`. Меняет только сервер |
-| `image_url` | varchar(512) | Латинское имя файла изображения в MinIO |
-| `video_url` | varchar(512) | Латинское имя файла видео в MinIO |
-| `cargo_mass` | double precision | Масса, т |
-| `cargo_volume` | double precision | Объём, м³ |
-| `created_at` | timestamp | Дата создания, ставит сервер |
-| `formed_at` | timestamp | Дата формирования, обновляется при публикации |
-| `creator_user_id` | integer, FK → `users.user_id` | Создатель. В этой лабораторной всегда singleton |
+| cargo_id | integer, PK | ID груза, назначается БД |
+| cargo_name | varchar(256), NOT NULL | Название, обязательно при создании |
+| cargo_description | text, NULL | Необязательное описание |
+| publication_status | varchar(32), NOT NULL | draft / published / deleted |
+| image_url | varchar(512), NOT NULL | Имя файла изображения в MinIO; старые записи могут содержать URL |
+| video_url | varchar(512), NOT NULL | Имя файла видео в MinIO; старые записи могут содержать URL |
+| cargo_mass | float, NULL | Масса в тоннах |
+| cargo_volume | float, NULL | Объём в м³ |
+| created_at | timestamp, NOT NULL | Дата создания на сервере, UTC |
+| formed_at | timestamp, NOT NULL | При создании — время создания, при публикации обновляется |
+| creator_user_id | integer, FK → users.user_id, NOT NULL | Создатель из singleton |
 
-Один черновик на создателя: уникальный частичный индекс `uq_cargos_one_draft_per_creator`.
+Частичный уникальный индекс `uq_cargos_one_draft_per_creator` запрещает
+более одного черновика одного пользователя. Он создаётся миграцией 001.
+Миграция 002 переводит массу/объём в float, миграция 003 разрешает NULL
+для описания, массы и объёма. Полей модератора и завершения в текущей модели нет.
 
-Отдельных полей модератора и даты завершения в этой предметной области нет.
+### cargo_interest_marks
 
-### `cargo_interest_marks`
-
-| Поле | Тип | Смысл |
+| Поле | Тип | Назначение |
 |---|---|---|
-| `mark_id` | integer, PK | Идентификатор отметки |
-| `user_id` | integer, FK → `users.user_id` | Кто поставил |
-| `cargo_id` | integer, FK → `cargos.cargo_id` | Какой груз |
+| mark_id | integer, PK | ID отметки |
+| user_id | integer, FK → users.user_id, NOT NULL | Пользователь, поставивший лайк |
+| cargo_id | integer, FK → cargos.cargo_id, NOT NULL | Груз |
 
-Пара (`user_id`, `cargo_id`) уникальна (`uq_interest_user_cargo`). Снятие лайка удаляет строку отметки. Мягкое удаление относится только к грузу.
+Ограничение UNIQUE(user_id, cargo_id) запрещает повторный лайк одной пары.
+`is_creator`, `is_liked`, `interest_marks` и публичные URL вычисляются в
+ответах API и отдельными столбцами в таблицах не хранятся.
 
-## Проверка данных после запросов
+## Запуск и проверка
 
-```sql
-SELECT cargo_id, cargo_name, publication_status, image_url, video_url,
-       creator_user_id, created_at, formed_at
-FROM cargos
-ORDER BY cargo_id;
+Из каталога backend_cargo_analize, с подготовленным `.env` по `.env.example`:
 
-SELECT mark_id, user_id, cargo_id
-FROM cargo_interest_marks
-ORDER BY mark_id;
-
-SELECT user_id, user_login, user_name
-FROM users
-ORDER BY user_id;
+```bash
+docker compose up -d
+../venv_for_tiktok/bin/alembic upgrade head
+docker compose exec -T postgres psql -U cargo -d cargo_db < db/seed.sql
+../venv_for_tiktok/bin/python main.py
 ```
 
-У опубликованного через PUT груза статус `published`, в `image_url` и `video_url` латинские имена. После DELETE статус `deleted`, и этот груз пропадает из списка и ленты. После лайка появляется строка в `cargo_interest_marks` с `user_id = 1`. После регистрации — новая строка в `users`.
+Swagger: `http://127.0.0.1:8000/docs`, Adminer: `http://localhost:8080`,
+MinIO Console: `http://localhost:9101` (порты по docker-compose.yml).
+Для Adminer сервер БД — `postgres`, пользователь и БД — `cargo` и `cargo_db`;
+пароль берётся из конфигурации окружения/Compose.
 
-## Диаграмма классов
+Импортировать `postman/lab3-corrected.postman_collection.json` в Postman.
+В запросе 02 вручную выбрать фото и короткое видео. ID созданного груза
+сохранится в `cargo_id`. В запросе 05 выключенные параметры позволяют
+переключать режимы ленты; возвращённый ID сохраняется отдельно в `feed_cargo_id`.
+До съёмки лайка/удаления убедиться, что выбран ID своего демонстрационного груза.
 
-Зависимости такие, как в коде: страницы ходят в домены, домены — в модели, модели отображаются на таблицы.
+Проверки без внешних сервисов:
 
-```mermaid
-classDiagram
-    class CatalogPage {
-        <<страница Каталог>>
-        index.html
-    }
-    class FeedPage {
-        <<страница Лента>>
-        lenta-podyoma.html
-    }
-    class AdditionPage {
-        <<страница Добавление>>
-        cargo_addition.html
-    }
-    class RegisterPage {
-        <<страница Регистрация>>
-        домен пользователя
-    }
-
-    class CargoDomain {
-        <<интерфейс /api/cargos>>
-        +GET /api/cargos
-        +GET /api/cargos/feed
-        +GET /api/cargos/feed/{id}?next=
-        +GET /api/cargos/draft
-        +POST /api/cargos
-        +PUT /api/cargos/{id}
-        +DELETE /api/cargos/{id}
-        +POST /api/cargos/{id}/likes
-    }
-    class UserDomain {
-        <<интерфейс /api>>
-        +POST /api/users
-        +POST /api/authentication
-        +POST /api/deauthentication
-    }
-
-    class Cargo
-    class User
-    class Like
-    class cargos
-    class users
-    class cargo_interest_marks
-
-    CatalogPage --> CargoDomain : список, удаление
-    FeedPage --> CargoDomain : лента, лайк
-    AdditionPage --> CargoDomain : черновик, создание, публикация
-    RegisterPage --> UserDomain : регистрация, заглушки входа
-
-    CargoDomain --> Cargo
-    CargoDomain --> Like
-    CargoDomain --> User : создатель singleton
-    UserDomain --> User
-
-    Cargo --> cargos
-    User --> users
-    Like --> cargo_interest_marks
+```bash
+../venv_for_tiktok/bin/python -m unittest discover -s tests -v
 ```
 
-Четыре страницы: каталог, лента и добавление уже есть в `cargo_front/templates`. Регистрация — четвёртая страница домена пользователя; шаблона у неё пока нет, метод `POST /api/users` для неё готов.
-
-## Контрольные вопросы
-
-**Веб-сервис.** Программа, к которой другая программа обращается по сети через описанный контракт. Здесь контракт — HTTP JSON на `/api`, клиент — SPA.
-
-**REST.** Стиль поверх HTTP: сущность задаётся адресом (`/api/cargos/5`), действие — методом (GET прочитать, POST создать, PUT заменить состояние публикации, DELETE удалить). Сервер не помнит, на каком шаге формы остановился клиент: каждый запрос самодостаточен.
-
-**RPC.** Удалённый вызов процедуры. В адресе обычно глагол (`/publishCargo`), а не ресурс. Отличие от REST в том, что операция называется в URL, а не выбирается методом HTTP. Заглушки `/api/authentication` и `/api/deauthentication` ближе к RPC: это действия, а не ресурс.
-
-**Методы HTTP.** GET — чтение без изменения. POST — создание или действие (регистрация, лайк). PUT — запись состояния ресурса (публикация). DELETE — удаление. Ещё есть PATCH, HEAD, OPTIONS.
-
-**Заголовки HTTP.** `Host` — куда идёт запрос. `Content-Type` — формат тела (`application/json` или `multipart/form-data` для файлов). `Content-Length` — размер тела. `Accept` — какой ответ ждёт клиент. `Authorization` — для лабораторной 4, сейчас не используется.
-
-**Версии HTTP.** 1.0 — отдельное соединение на запрос. 1.1 — постоянное соединение и обязательный `Host`. 2 — несколько запросов в одном соединении, бинарное кадрирование. 3 — тот же смысл поверх QUIC (UDP), а не TCP.
-
-**HTTPS.** HTTP внутри TLS: трафик шифруется, клиент проверяет сертификат сервера. Для этой лабораторной сервис поднят по HTTP на localhost.
-
-**OSI ISO.** Семь уровней. По этому сервису: прикладной (7) — HTTP и смысл `/api`, представления (6) — JSON и TLS при HTTPS, сеансовый (5) — в чистом виде почти не виден, транспортный (4) — TCP (порт 8000), сетевой (3) — IP, канальный (2) и физический (1) — сеть машины. HTTPS добавляет TLS между HTTP и TCP.
-
-## Проверка лабораторной
-
-Оценка и оставшиеся шаги защиты: [docs/lab3-review.md](docs/lab3-review.md).
-Редактируемая диаграмма для draw.io: [docs/lab3-classes.drawio](docs/lab3-classes.drawio).
-После обновления выполните `alembic upgrade head`: миграция 002 сохраняет дробные массу и объём.
-Проверки без PostgreSQL: `python -m unittest discover -s tests -v`.
+Тесты выполняют HTTP-запросы через ASGI, используют ORM и временную SQLite
+в памяти; MinIO подменён. Это проверяет контракты API, личный лайк, права,
+публикацию и маршруты. Миграции PostgreSQL, настоящий MinIO и ручной прогон
+коллекции проверяются отдельно на запущенных контейнерах.

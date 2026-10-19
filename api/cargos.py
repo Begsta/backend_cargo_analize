@@ -1,11 +1,27 @@
 import asyncio
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.serializers import CargoOut, LikeIn, LikeOut, cargo_to_out
+from api.serializers import (
+    CargoFeedOut,
+    CargoOut,
+    CargoPublishIn,
+    LikeIn,
+    LikeOut,
+    cargo_to_out,
+)
 from core.current_user import get_current_user_id
 from core.storage import (
     MAX_FILE_BYTES,
@@ -98,6 +114,22 @@ async def _out(db: AsyncSession, cargo: Cargo) -> CargoOut:
     return (await _outs(db, [cargo]))[0]
 
 
+async def _feed_out(db: AsyncSession, cargo: Cargo) -> CargoFeedOut:
+    out = await _out(db, cargo)
+    mark = await db.execute(
+        select(Like.mark_id)
+        .where(
+            Like.cargo_id == cargo.cargo_id,
+            Like.user_id == get_current_user_id(),
+        )
+        .limit(1)
+    )
+    return CargoFeedOut(
+        **out.model_dump(),
+        is_liked=1 if mark.scalar_one_or_none() is not None else 0,
+    )
+
+
 async def _reject_system_fields(request: Request) -> None:
     form = await request.form()
     present = sorted(FORBIDDEN_CLIENT_FIELDS.intersection(form.keys()))
@@ -156,21 +188,17 @@ async def list_cargos(
     return await _outs(db, list(result.scalars().all()))
 
 
-@router.get("/feed", response_model=CargoOut, summary="Лента без идентификатора")
-async def feed_first(db: AsyncSession = Depends(get_db)) -> CargoOut:
-    return await _out(db, await _feed_cargo(db))
-
-@router.get(
-    "/feed/{cargo_id}",
-    response_model=CargoOut,
-    summary="Лента по идентификатору",
-)
-async def feed_by_id(
-    cargo_id: int,
-    next_item: bool = Query(False, alias="next"),
+@router.get("/feed", response_model=CargoFeedOut, summary="Лента опубликованных грузов")
+async def feed(
+    cargo_id: int | None = Query(default=None, gt=0),
+    next_item: bool = Query(
+        False, alias="next", description="Следующий после cargo_id; после последнего — первый",
+    ),
     db: AsyncSession = Depends(get_db),
-) -> CargoOut:
-    return await _out(db, await _feed_cargo(db, cargo_id, next_item=next_item))
+) -> CargoFeedOut:
+    if next_item and cargo_id is None:
+        raise HTTPException(status_code=422, detail="Для next=true укажите cargo_id")
+    return await _feed_out(db, await _feed_cargo(db, cargo_id, next_item=next_item))
 
 @router.get("/draft", response_model=CargoOut, summary="Черновик текущего пользователя")
 async def get_draft(db: AsyncSession = Depends(get_db)) -> CargoOut:
@@ -190,14 +218,18 @@ async def get_draft(db: AsyncSession = Depends(get_db)) -> CargoOut:
 async def create_cargo(
     request: Request,
     cargo_name: str = Form(...),
-    cargo_description: str = Form(""),
-    cargo_mass: float = Form(0, ge=0, allow_inf_nan=False),
-    cargo_volume: float = Form(0, ge=0, allow_inf_nan=False),
     image: UploadFile = File(...),
     video: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ) -> CargoOut:
     await _reject_system_fields(request)
+    extra_fields = set((await request.form()).keys()) - {"cargo_name", "image", "video"}
+    if extra_fields:
+        raise HTTPException(
+            status_code=422,
+            detail="Для создания нужны только cargo_name, image и video. "
+            "Описание, массу и объём можно передать при публикации через PUT",
+        )
     user_id = get_current_user_id()
     await _require_user(db, user_id)
 
@@ -206,9 +238,6 @@ async def create_cargo(
         raise HTTPException(status_code=422, detail="Название груза обязательно")
     if len(name) > 256:
         raise HTTPException(status_code=422, detail="Название длиннее 256 символов")
-    if cargo_mass < 0 or cargo_volume < 0:
-        raise HTTPException(status_code=422, detail="Масса и объём не могут быть отрицательными")
-
     existing = await db.execute(
         select(Cargo.cargo_id).where(
             Cargo.publication_status == STATUS_DRAFT,
@@ -231,12 +260,12 @@ async def create_cargo(
     now = utc_now()
     cargo = Cargo(
         cargo_name=name,
-        cargo_description=cargo_description,
+        cargo_description=None,
         publication_status=STATUS_DRAFT,
         image_url=image_name,
         video_url=video_name,
-        cargo_mass=cargo_mass,
-        cargo_volume=cargo_volume,
+        cargo_mass=None,
+        cargo_volume=None,
         created_at=now,
         formed_at=now,
         creator_user_id=user_id,
@@ -261,6 +290,7 @@ async def create_cargo(
 )
 async def publish_cargo(
     cargo_id: int,
+    body: CargoPublishIn | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> CargoOut:
     cargo = await _visible(db, cargo_id)
@@ -270,6 +300,9 @@ async def publish_cargo(
             status_code=409,
             detail="Вернуть груз в черновик нельзя. Публикация доступна только из черновика",
         )
+    if body is not None:
+        for name, value in body.model_dump(exclude_unset=True).items():
+            setattr(cargo, name, value)
     cargo.publication_status = STATUS_PUBLISHED
     cargo.formed_at = utc_now()
     await db.commit()

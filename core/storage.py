@@ -67,6 +67,8 @@ def ensure_bucket() -> None:
             ],
         }
         client.set_bucket_policy(bucket, json.dumps(policy))
+    except (urllib3.exceptions.HTTPError, OSError) as exc:
+        raise StorageError("MinIO недоступен. Проверьте запуск хранилища и MINIO_ENDPOINT") from exc
     except S3Error as exc:
         raise StorageError("Не удалось подготовить бакет MinIO") from exc
 
@@ -115,5 +117,7 @@ def upload_bytes(object_name: str, data: bytes, content_type: str) -> None:
             length=len(data),
             content_type=content_type or "application/octet-stream",
         )
+    except (urllib3.exceptions.HTTPError, OSError) as exc:
+        raise StorageError("MinIO недоступен. Проверьте запуск хранилища и MINIO_ENDPOINT") from exc
     except S3Error as exc:
         raise StorageError("Не удалось сохранить файл в MinIO") from exc

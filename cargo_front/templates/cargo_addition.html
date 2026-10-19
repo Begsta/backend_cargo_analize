@@ -21,22 +21,26 @@
           <h2>Изображение</h2>
           <img
             class="prevyu-minio"
-            src="/static/img/default-cargo.jpg"
-            alt="Заглушка изображения груза"
+            src="{{ cargo.image_url }}"
+            alt="{{ cargo.cargo_name or 'Изображение груза' }}"
           />
-          <input class="pole-fayla" type="file" accept="image/*" aria-label="Файл изображения (не сохраняется)" />
+          {% if not has_draft %}
+          <input class="pole-fayla" type="file" name="image" form="forma-chernovika" accept="image/*" aria-label="Файл изображения" required />
+          {% endif %}
         </section>
 
         <section class="blok-minio">
           <h2>Видео цикла</h2>
           <video class="prevyu-minio" src="{{ cargo.video_url }}" muted controls></video>
-          <input class="pole-fayla" type="file" accept="video/*" aria-label="Файл видео (не сохраняется)" />
+          {% if not has_draft %}
+          <input class="pole-fayla" type="file" name="video" form="forma-chernovika" accept="video/*" aria-label="Файл видео" required />
+          {% endif %}
         </section>
 
         {% if not has_draft %}
-        <form method="post" action="/cargo_addition/next">
+        <form id="forma-chernovika" method="post" action="/cargo_addition/next" enctype="multipart/form-data">
           <label class="metka-polya" for="cargo_name">Наименование груза</label>
-          <input class="pole-gruza" id="cargo_name" name="cargo_name" type="text" value="" required />
+          <input class="pole-gruza" id="cargo_name" name="cargo_name" type="text" value="" maxlength="256" required />
           <button class="knopka-deystviya" type="submit">Далее</button>
         </form>
         {% else %}
@@ -45,7 +49,7 @@
           <input class="pole-gruza" id="cargo_name" name="cargo_name" type="text" value="{{ cargo.cargo_name }}" required />
 
           <label class="metka-polya" for="cargo_description">Описание груза</label>
-          <textarea class="pole-gruza" id="cargo_description" name="cargo_description">{{ cargo.cargo_description }}</textarea>
+          <textarea class="pole-gruza" id="cargo_description" name="cargo_description">{{ cargo.cargo_description or '' }}</textarea>
 
           <label class="metka-polya" for="cargo_mass">Масса груза, т</label>
           <input
@@ -55,8 +59,7 @@
             type="text"
             inputmode="decimal"
             autocomplete="off"
-            value=""
-            required
+            value="{{ cargo.cargo_mass if cargo.cargo_mass is not none else '' }}"
           />
 
           <label class="metka-polya" for="cargo_volume">Объём груза, м³</label>
@@ -67,8 +70,7 @@
             type="text"
             inputmode="decimal"
             autocomplete="off"
-            value=""
-            required
+            value="{{ cargo.cargo_volume if cargo.cargo_volume is not none else '' }}"
           />
 
           <button class="knopka-deystviya knopka-opublikovat" type="submit">Опубликовать</button>

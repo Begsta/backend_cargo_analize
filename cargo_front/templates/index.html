@@ -65,7 +65,7 @@
                 <h2>{{ cargo.cargo_name }}</h2>
                 <div class="niz-kartochki">
                   <span>Интерес <strong>{{ cargo.interest_marks }}</strong></span>
-                  <span>Масса <strong>{{ cargo.cargo_mass }} т</strong> · Объём <strong>{{ cargo.cargo_volume }} м³</strong></span>
+                  <span>Масса <strong>{{ (cargo.cargo_mass ~ ' т') if cargo.cargo_mass is not none else 'не указана' }}</strong> · Объём <strong>{{ (cargo.cargo_volume ~ ' м³') if cargo.cargo_volume is not none else 'не указан' }}</strong></span>
                 </div>
               </div>
             </a>

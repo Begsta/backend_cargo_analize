@@ -25,18 +25,18 @@
             <h1 class="naimenovanie-gruza">{{ cargo.cargo_name }}</h1>
             <details class="opisanie-podyoma">
               <summary>Описание груза</summary>
-              <p class="tekst-opisaniya">{{ cargo.cargo_description }}</p>
+              <p class="tekst-opisaniya">{{ cargo.cargo_description or 'Описание не указано' }}</p>
             </details>
           </div>
           <aside class="kolonka-sprava" aria-label="Параметры и действия">
             <dl class="polya-podyoma">
               <div>
                 <dt>Масса</dt>
-                <dd>{{ cargo.cargo_mass }} т</dd>
+                <dd>{{ (cargo.cargo_mass ~ ' т') if cargo.cargo_mass is not none else 'Не указана' }}</dd>
               </div>
               <div>
                 <dt>Объём</dt>
-                <dd>{{ cargo.cargo_volume }} м³</dd>
+                <dd>{{ (cargo.cargo_volume ~ ' м³') if cargo.cargo_volume is not none else 'Не указан' }}</dd>
               </div>
             </dl>
             <div class="ikonki-sprava">

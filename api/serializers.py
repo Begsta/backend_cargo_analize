@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from core.storage import public_media_url
 from models.cargo import Cargo
@@ -12,19 +12,42 @@ class CargoOut(BaseModel):
 
     cargo_id: int
     cargo_name: str
-    cargo_description: str
+    cargo_description: str | None
     publication_status: str
     image_url: str
     video_url: str
     image_public_url: str
     video_public_url: str
-    cargo_mass: float
-    cargo_volume: float
+    cargo_mass: float | None
+    cargo_volume: float | None
     created_at: datetime
     formed_at: datetime
     creator_user_id: int
     is_creator: Literal[0, 1]
     interest_marks: int
+
+
+class CargoFeedOut(CargoOut):
+    """В ленте показываем личный лайк отдельно от общего числа отметок."""
+
+    is_liked: Literal[0, 1] = Field(
+        description="1 — текущий пользователь поставил лайк, 0 — не поставил",
+    )
+
+
+class CargoPublishIn(BaseModel):
+    """Необязательные характеристики, заполняемые после создания черновика."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    cargo_description: str | None = None
+    cargo_mass: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    cargo_volume: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+
+    @field_validator("cargo_description")
+    @classmethod
+    def empty_description(cls, value: str | None) -> str | None:
+        return value if value and value.strip() else None
 
 
 class LikeIn(BaseModel):

@@ -1,0 +1,436 @@
+{
+  "info": {
+    "name": "Лабораторная 3 — WOLFF — 10 методов",
+    "description": "Ровно 10 запросов. Лента — один метод с двумя режимами. Для рис. 1 показать дерево коллекции, а не Documentation. Файлы в запросе 02 выбрать вручную. Перед запуском проверьте пользователя 1 и отсутствие его старого черновика.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "cargo_id",
+      "value": ""
+    },
+    {
+      "key": "feed_cargo_id",
+      "value": ""
+    },
+    {
+      "key": "registered_user_id",
+      "value": ""
+    },
+    {
+      "key": "registered_user_login",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Список грузов с фильтром",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/cargos?cargo_mass=4",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos"
+          ],
+          "query": [
+            {
+              "key": "cargo_mass",
+              "value": "4"
+            }
+          ]
+        },
+        "description": "Рис. 2. Фильтр по массе; только published. is_creator — свой/чужой груз."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+              "pm.test(\"Фильтр и статус\", () => pm.response.json().forEach(c => { pm.expect(c.publication_status).to.eql(\"published\"); pm.expect(c.cargo_mass).to.be.at.least(4); pm.expect([0,1]).to.include(c.is_creator); }));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "02 Создать черновик: 3 поля",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/cargos",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos"
+          ]
+        },
+        "description": "Рис. 3. Только cargo_name + image + video. В Postman выберите два настоящих файла с компьютера. Content-Type multipart не задавайте вручную.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "cargo_name",
+              "value": "Панель для подъёма башенным краном",
+              "type": "text"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": []
+            },
+            {
+              "key": "video",
+              "type": "file",
+              "src": []
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+              "if (pm.response.code === 201) { const c = pm.response.json(); pm.collectionVariables.set(\"cargo_id\", String(c.cargo_id)); pm.test(\"Минимальный черновик\", () => { pm.expect(c.publication_status).to.eql(\"draft\"); [\"cargo_description\",\"cargo_mass\",\"cargo_volume\"].forEach(k => pm.expect(c[k]).to.eql(null)); }); }"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "03 Получить свой черновик без ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/draft",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "draft"
+          ]
+        },
+        "description": "Рис. 4. Возвращает не более одного черновика пользователя singleton."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Успешный ответ\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "04 Дополнить и опубликовать",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/{{cargo_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "{{cargo_id}}"
+          ]
+        },
+        "description": "Рис. 5. Три необязательные характеристики передаются сейчас. Можно убрать всё тело и опубликовать без них.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cargo_description\": \"Демонстрационный груз лабораторной 3\",\n  \"cargo_mass\": 5.5,\n  \"cargo_volume\": 2\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+              "pm.test(\"Груз опубликован\", () => pm.expect(pm.response.json().publication_status).to.eql(\"published\"));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "05 Лента: первый / по ID / следующий",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/feed",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "feed"
+          ],
+          "query": [
+            {
+              "key": "cargo_id",
+              "value": "{{feed_cargo_id}}",
+              "disabled": true
+            },
+            {
+              "key": "next",
+              "value": "true",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Рис. 6: оба query-параметра выключены. Рис. 7: включите cargo_id и next=true. cargo_id={{feed_cargo_id}} — последний показанный груз. Чтобы проверить личный лайк, включите только cargo_id и введите {{cargo_id}}."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const c = pm.response.json(); pm.collectionVariables.set(\"feed_cargo_id\", String(c.cargo_id)); pm.test(\"Личный лайк 0/1\", () => pm.expect([0,1]).to.include(c.is_liked)); }"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "06 Поставить / снять лайк",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/{{cargo_id}}/likes",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "{{cargo_id}}",
+            "likes"
+          ]
+        },
+        "description": "Рис. 8. 1 ставит личный лайк, 0 снимает. После запроса повторите ленту с cargo_id={{cargo_id}} без next: is_liked должен совпасть с interest.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"interest\": 1\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Успешный ответ\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "07 Мягко удалить свой груз",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/cargos/{{cargo_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "cargos",
+            "{{cargo_id}}"
+          ]
+        },
+        "description": "Рис. 9. Выполнить после демонстрации лайка. 204 без тела; запись остаётся со статусом deleted."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "08 Зарегистрировать пользователя",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/users",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "users"
+          ]
+        },
+        "description": "Рис. 10. При каждом повторе нужен уникальный user_login. Регистрация не меняет пользователя singleton.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_login\": \"operator_lab3_{{$timestamp}}\",\n  \"user_name\": \"Оператор лабораторной 3\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+              "if (pm.response.code === 201) { const u=pm.response.json(); pm.collectionVariables.set(\"registered_user_id\", String(u.user_id)); pm.collectionVariables.set(\"registered_user_login\", u.user_login); }"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "09 Аутентификация — заглушка",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/authentication",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "authentication"
+          ]
+        },
+        "description": "Входит в 10 методов. Логин и пароль не проверяются до лабораторной 4.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_login\": \"operator\",\n  \"user_password\": \"demo\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Успешный ответ\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "10 Деавторизация — заглушка",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/deauthentication",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "deauthentication"
+          ]
+        },
+        "description": "Входит в 10 методов; тело запроса не нужно."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Успешный ответ\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    }
+  ]
+}

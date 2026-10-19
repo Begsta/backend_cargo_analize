@@ -1,23 +1,24 @@
 from datetime import UTC, datetime
+from math import isfinite
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Form
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.storage import public_media_url
+from api.cargos import create_cargo
 from core.current_user import get_current_user_id
+from core.storage import public_media_url
 from db.session import get_db
 from models.cargo import Cargo
 from models.like import Like
-from models.user import User
+from models.user import User  # noqa: F401 — регистрация связанной модели SQLAlchemy
 
-router = APIRouter()
+router = APIRouter(include_in_schema=False)
 templates = Jinja2Templates(directory="cargo_front/templates")
-DEFAULT_MEDIA_CARGO_ID = 4
 DEFAULT_IMAGE_URL = "/static/img/default-cargo.jpg"
-DEFAULT_VIDEO_URL = "http://localhost:9100/media/12466938_3840_2160_30fps.mp4"
+DEFAULT_VIDEO_URL = "/static/vid/gemini_generated_video_076b54a8.mp4"
 
 
 def utc_now() -> datetime:
@@ -38,19 +39,6 @@ def apply_default_media(
     cargo.image_url = public_media_url(cargo.image_url)
     cargo.video_url = public_media_url(cargo.video_url)
     return cargo
-
-
-async def load_default_media(db: AsyncSession) -> tuple[str, str]:
-    result = await db.execute(
-        select(Cargo.image_url, Cargo.video_url).where(
-            Cargo.cargo_id == DEFAULT_MEDIA_CARGO_ID
-        )
-    )
-    row = result.one_or_none()
-    if row is None:
-        return DEFAULT_IMAGE_URL, DEFAULT_VIDEO_URL
-    _image_url, video_url = row
-    return DEFAULT_IMAGE_URL, video_url or DEFAULT_VIDEO_URL
 
 
 async def get_user_draft(db: AsyncSession) -> Cargo | None:
@@ -89,9 +77,8 @@ async def get_cargo_tiles(
 
     result = await db.execute(stmt)
     cargos = result.scalars().all()
-    default_image, default_video = await load_default_media(db)
     for cargo in cargos:
-        apply_default_media(cargo, default_image, default_video)
+        apply_default_media(cargo)
 
     like_counts = dict(
         (
@@ -122,17 +109,28 @@ async def get_cargo_detail(
 ):
 
     if next_video:
-        stmt = select(Cargo).where(Cargo.publication_status == "published")
+        stmt = (
+            select(Cargo)
+            .where(
+                Cargo.publication_status == "published",
+                Cargo.cargo_id > cargo_id,
+            )
+            .order_by(Cargo.cargo_id)
+            .limit(1)
+        )
         result = await db.execute(stmt)
-        cargos = result.scalars().all()
-        if not cargos:
+        cargo = result.scalar_one_or_none()
+        if cargo is None:
+            stmt = (
+                select(Cargo)
+                .where(Cargo.publication_status == "published")
+                .order_by(Cargo.cargo_id)
+                .limit(1)
+            )
+            result = await db.execute(stmt)
+            cargo = result.scalar_one_or_none()
+        if cargo is None:
             raise HTTPException(status_code=404, detail="No published cargos")
-
-        cargo = cargos[0]
-        for idx, item in enumerate(cargos):
-            if item.cargo_id == cargo_id:
-                cargo = cargos[(idx + 1) % len(cargos)]
-                break
     else:
         stmt = select(Cargo).where(
             Cargo.publication_status == "published",
@@ -143,8 +141,7 @@ async def get_cargo_detail(
         if cargo is None:
             raise HTTPException(status_code=404, detail="Cargo not found")
 
-    default_image, default_video = await load_default_media(db)
-    apply_default_media(cargo, default_image, default_video)
+    apply_default_media(cargo)
     return templates.TemplateResponse(
         request=request,
         name="lenta-podyoma.html",
@@ -157,7 +154,12 @@ async def get_cargo_detail(
 
 @router.get("/lift_feed")
 async def get_first_video(db: AsyncSession = Depends(get_db)):
-    stmt = select(Cargo).where(Cargo.publication_status == "published").limit(1)
+    stmt = (
+        select(Cargo)
+        .where(Cargo.publication_status == "published")
+        .order_by(Cargo.cargo_id)
+        .limit(1)
+    )
     result = await db.execute(stmt)
     cargo = result.scalar_one_or_none()
     if cargo is None:
@@ -168,14 +170,13 @@ async def get_first_video(db: AsyncSession = Depends(get_db)):
 
 @router.get("/cargo_addition")
 async def get_cargo_addition(request: Request, db: AsyncSession = Depends(get_db)):
-    default_image, default_video = await load_default_media(db)
-    draft = apply_default_media(await get_user_draft(db), default_image, default_video)
+    draft = apply_default_media(await get_user_draft(db))
     empty = {
         "cargo_name": "",
         "cargo_description": "",
         "publication_status": "",
-        "image_url": default_image,
-        "video_url": default_video,
+        "image_url": DEFAULT_IMAGE_URL,
+        "video_url": DEFAULT_VIDEO_URL,
         "cargo_mass": "",
         "cargo_volume": "",
     }
@@ -191,26 +192,15 @@ async def get_cargo_addition(request: Request, db: AsyncSession = Depends(get_db
 
 @router.post("/cargo_addition/next")
 async def create_draft(
-    cargo_name: str = Form(""),
+    request: Request,
+    cargo_name: str = Form(...),
+    image: UploadFile = File(...),
+    video: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    draft = await get_user_draft(db)
-    if draft is None:
-        db.add(
-            Cargo(
-                cargo_name=cargo_name.strip() or "Новый груз",
-                cargo_description="",
-                publication_status="draft",
-                image_url="",
-                video_url="",
-                cargo_mass=0,
-                cargo_volume=0,
-                created_at=utc_now(),
-                formed_at=utc_now(),
-                creator_user_id=get_current_user_id(),
-            )
-        )
-        await db.commit()
+    await create_cargo(
+        request=request, cargo_name=cargo_name, image=image, video=video, db=db,
+    )
     return RedirectResponse(url="/cargo_addition", status_code=303)
 
 
@@ -218,8 +208,8 @@ async def create_draft(
 async def publish_draft(
     cargo_name: str = Form(...),
     cargo_description: str = Form(""),
-    cargo_mass: str = Form("0"),
-    cargo_volume: str = Form("0"),
+    cargo_mass: str = Form(""),
+    cargo_volume: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
     draft = await get_user_draft(db)
@@ -227,13 +217,15 @@ async def publish_draft(
         raise HTTPException(status_code=400, detail="Draft not found")
 
     try:
-        mass = float(cargo_mass.replace(",", "."))
-        volume = float(cargo_volume.replace(",", "."))
+        mass = float(cargo_mass.replace(",", ".")) if cargo_mass.strip() else None
+        volume = float(cargo_volume.replace(",", ".")) if cargo_volume.strip() else None
     except ValueError:
-        mass, volume = 0, 0
+        raise HTTPException(status_code=422, detail="Масса и объём должны быть числами") from None
+    if any(value is not None and (not isfinite(value) or value < 0) for value in (mass, volume)):
+        raise HTTPException(status_code=422, detail="Масса и объём должны быть конечными неотрицательными числами")
 
     draft.cargo_name = cargo_name.strip() or draft.cargo_name
-    draft.cargo_description = cargo_description
+    draft.cargo_description = cargo_description if cargo_description.strip() else None
     draft.cargo_mass = mass
     draft.cargo_volume = volume
     draft.publication_status = "published"

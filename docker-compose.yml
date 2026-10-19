@@ -1,6 +1,5 @@
 services:
   minio:
-    container_name: minio_storage
     image: minio/minio:latest
     ports:
       - "9100:9000"

@@ -19,12 +19,12 @@ class Cargo(Base):
 
     cargo_id = Column(Integer, primary_key=True, index=True)
     cargo_name = Column(String(256), nullable=False)
-    cargo_description = Column(Text, nullable=False, default="")
+    cargo_description = Column(Text, nullable=True)
     publication_status = Column(String(32), nullable=False)
     image_url = Column(String(512), nullable=False, default="")
     video_url = Column(String(512), nullable=False, default="")
-    cargo_mass = Column(Float, nullable=False, default=0)
-    cargo_volume = Column(Float, nullable=False, default=0)
+    cargo_mass = Column(Float, nullable=True)
+    cargo_volume = Column(Float, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utc_now)
     formed_at = Column(DateTime, nullable=False, default=utc_now)
     creator_user_id = Column(
